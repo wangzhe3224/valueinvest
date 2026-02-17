@@ -196,6 +196,7 @@ class YFinanceFetcher(BaseFetcher):
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         period: str = "5y",
+        adjust: str = "qfq",
     ) -> HistoryResult:
         try:
             stock = self._get_ticker_obj(ticker)

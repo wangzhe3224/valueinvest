@@ -250,6 +250,7 @@ class TushareFetcher(BaseFetcher):
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         period: str = "5y",
+        adjust: str = "qfq",
     ) -> HistoryResult:
         try:
             api = self._get_api()

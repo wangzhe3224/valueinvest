@@ -15,45 +15,59 @@ from valueinvest import Stock, StockHistory, ValuationEngine
 
 
 def analyze_stock(ticker: str, company_type: str = "auto", history_period: str = "5y"):
-    """执行股票分析并生成报告"""
     
-    print(f"\n正在获取 {ticker} 数据...")
+    print(f"\n正在获取 {ticker} 基本面数据...")
     
-    # 获取数据
     try:
-        stock, history = Stock.from_api_with_history(ticker, history_period=history_period)
+        stock = Stock.from_api(ticker)
     except Exception as e:
-        print(f"错误: 无法获取数据 - {e}")
+        print(f"错误: 无法获取基本面数据 - {e}")
         sys.exit(1)
     
-    # 自动检测公司类型
+    print(f"正在获取 {ticker} 价格历史...")
+    
+    try:
+        history = Stock.fetch_price_history(ticker, period=history_period)
+    except Exception as e:
+        print(f"警告: 无法获取价格历史 - {e}")
+        history = StockHistory(ticker=ticker)
+    
     if company_type == "auto":
         company_type = detect_company_type(stock, history)
     
-    # 设置估值参数
     set_valuation_params(stock, company_type, history)
     
-    # 生成报告
-    print_report(stock, history, company_type)
+    print_report(stock, history, company_type, history_period)
 
 
 def detect_company_type(stock: Stock, history: StockHistory) -> str:
-    """根据财务特征检测公司类型"""
     
-    # 银行特征: 代码以601或600开头的金融股
-    if stock.ticker.startswith(("601", "600")) and stock.ticker[2:4] in ["398", "288", "988", "166"]:
+    UTILITIES_TICKERS = {
+        "600900", "601985", "600011", "600795", "600886",
+        "000539", "000543", "000600", "001896",
+    }
+    
+    if stock.ticker in UTILITIES_TICKERS:
+        return "dividend"
+    
+    BANK_TICKERS = {
+        "601398", "601288", "600036", "601166", "600000",
+        "601988", "600016", "601818", "600015", "601998",
+        "002142", "600919", "601229", "600908", "601838",
+    }
+    
+    if stock.ticker in BANK_TICKERS:
         return "bank"
     
-    # 高分红
     if stock.dividend_yield and stock.dividend_yield > 3:
         return "dividend"
     
-    # 高增长
-    if history.cagr and history.cagr > 10:
+    real_cagr = history.cagr_hfq if history.cagr_hfq != 0 else history.cagr
+    
+    if real_cagr and real_cagr > 10:
         return "growth"
     
-    # 低增长/价值股
-    if history.cagr and history.cagr < 5:
+    if real_cagr and real_cagr < 5:
         return "value"
     
     return "general"
@@ -88,12 +102,9 @@ def set_valuation_params(stock: Stock, company_type: str, history: StockHistory)
         stock.discount_rate = 10.0
 
 
-def print_report(stock: Stock, history: StockHistory, company_type: str):
-    """打印分析报告"""
-    
+def print_report(stock: Stock, history: StockHistory, company_type: str, history_period: str = "5y"):
     engine = ValuationEngine()
     
-    # 运行估值
     if company_type == "bank":
         results = engine.run_bank(stock)
     elif company_type == "dividend":
@@ -103,15 +114,12 @@ def print_report(stock: Stock, history: StockHistory, company_type: str):
     else:
         results = engine.run_all(stock)
     
-    # 过滤有效结果
     valid_results = [r for r in results if r.fair_value and r.fair_value > 0 and "Error" not in r.assessment]
     
-    # ===== 打印报告 =====
     print("\n" + "=" * 70)
     print(f"{stock.name} ({stock.ticker}) - 深度分析报告")
     print("=" * 70)
     
-    # 公司概况
     print(f"\n【公司概况】")
     print(f"  公司: {stock.name}")
     print(f"  代码: {stock.ticker}")
@@ -119,7 +127,6 @@ def print_report(stock: Stock, history: StockHistory, company_type: str):
     print(f"  当前股价: ¥{stock.current_price:.2f}")
     print(f"  总市值: ¥{stock.current_price * stock.shares_outstanding / 1e8:.0f}亿")
     
-    # 财务指标
     print(f"\n【最新财务数据】")
     if stock.revenue:
         print(f"  营业收入: ¥{stock.revenue/1e8:.0f}亿")
@@ -130,11 +137,47 @@ def print_report(stock: Stock, history: StockHistory, company_type: str):
     print(f"  市盈率 (PE): {stock.pe_ratio:.1f}倍")
     print(f"  市净率 (PB): {stock.pb_ratio:.2f}倍")
     
-    # 历史表现
-    print(f"\n【历史表现 (5年)】")
-    print(f"  股价CAGR: {history.cagr:.2f}%")
-    print(f"  年化波动率: {history.volatility:.2f}%")
-    print(f"  最大回撤: {history.max_drawdown:.2f}%")
+    print(f"\n【历史表现 ({history_period})】")
+    if history.prices:
+        print(f"  股价CAGR (qfq): {history.cagr:.2f}%")
+        print(f"  真实回报 (hfq): {history.cagr_hfq:.2f}%")
+        print(f"  年化波动率: {history.volatility:.2f}%")
+        print(f"  最大回撤: {history.max_drawdown:.2f}%")
+        
+        recent_stats = history.get_price_stats(days=30, adjust="qfq")
+        if recent_stats:
+            print()
+            print(f"【近30日价格 (QFQ前复权)】")
+            print(f"  最高: ¥{recent_stats['high']:.2f}")
+            print(f"  最低: ¥{recent_stats['low']:.2f}")
+            print(f"  均价: ¥{recent_stats['avg']:.2f}")
+            print(f"  最新: ¥{recent_stats['latest']:.2f}")
+            print(f"  涨跌幅: {recent_stats['change_pct']:+.2f}%")
+        
+        if history.cagr_hfq != 0:
+            print()
+            print(f"【真实投资回报 (HFQ后复权)】")
+            print(f"  含分红再投资CAGR: {history.cagr_hfq:.2f}%")
+            stats_hfq = history.get_price_stats(days=30, adjust="hfq")
+            if stats_hfq:
+                print(f"  (后复权价格: ¥{stats_hfq['latest']:.0f})")
+        
+        recent_prices = history.get_recent_prices(days=10, adjust="qfq")
+        if recent_prices:
+            print()
+            print(f"【近10日收盘价 (QFQ)】")
+            for i, p in enumerate(recent_prices[-10:]):
+                change = ""
+                if i > 0:
+                    prev_close = recent_prices[i - 1]["close"]
+                    if prev_close > 0:
+                        change = f" ({(p['close']/prev_close - 1)*100:+.2f}%)"
+                print(f"  {p['date']}: ¥{p['close']:.2f}{change}")
+        
+        print()
+        print("  注: QFQ(前复权)用于与估值比较, HFQ(后复权)反映真实含分红回报")
+    else:
+        print("  (无历史价格数据)")
     
     # 估值汇总表
     print("\n" + "=" * 70)

@@ -197,6 +197,7 @@ class AKShareFetcher(BaseFetcher):
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         period: str = "5y",
+        adjust: str = "qfq",
     ) -> HistoryResult:
         try:
             ak = self._get_akshare()
@@ -217,7 +218,7 @@ class AKShareFetcher(BaseFetcher):
                 period="daily",
                 start_date=start_dt.strftime("%Y%m%d"),
                 end_date=end_dt.strftime("%Y%m%d"),
-                adjust="hfq",
+                adjust=adjust,
             )
 
             if df is None or df.empty:

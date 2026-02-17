@@ -11,16 +11,20 @@ if TYPE_CHECKING:
 class StockHistory:
     ticker: str
     df: Optional["pd.DataFrame"] = None
+    df_hfq: Optional["pd.DataFrame"] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     cagr: float = 0.0
+    cagr_hfq: float = 0.0
     volatility: float = 0.0
     max_drawdown: float = 0.0
     prices: List[float] = field(default_factory=list)
+    prices_hfq: List[float] = field(default_factory=list)
+    adjust_type: str = "qfq"
 
     @classmethod
-    def from_history_result(cls, result: "HistoryResult") -> "StockHistory":
-        return cls(
+    def from_history_result(cls, result: "HistoryResult", result_hfq: Optional["HistoryResult"] = None) -> "StockHistory":
+        history = cls(
             ticker=result.ticker,
             df=result.df,
             start_date=result.start_date,
@@ -30,6 +34,49 @@ class StockHistory:
             max_drawdown=result.calculate_max_drawdown(),
             prices=result.prices,
         )
+        
+        if result_hfq and result_hfq.df is not None:
+            history.df_hfq = result_hfq.df
+            history.prices_hfq = result_hfq.prices
+            history.cagr_hfq = result_hfq.calculate_cagr()
+        
+        return history
+
+    def get_recent_prices(self, days: int = 30, adjust: str = "qfq") -> List[dict]:
+        df = self.df_hfq if adjust == "hfq" else self.df
+        if df is None or df.empty:
+            return []
+        
+        recent = df.tail(days)
+        result = []
+        for idx, row in recent.iterrows():
+            date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)
+            result.append({
+                "date": date_str,
+                "open": float(row["open"]),
+                "high": float(row["high"]),
+                "low": float(row["low"]),
+                "close": float(row["close"]),
+                "volume": int(row["volume"]) if row["volume"] else 0,
+            })
+        return result
+
+    def get_price_stats(self, days: int = 30, adjust: str = "qfq") -> dict:
+        df = self.df_hfq if adjust == "hfq" else self.df
+        if df is None or df.empty:
+            return {}
+        
+        recent = df.tail(days)
+        closes = recent["close"]
+        
+        return {
+            "period_days": len(recent),
+            "high": float(closes.max()),
+            "low": float(closes.min()),
+            "avg": float(closes.mean()),
+            "latest": float(closes.iloc[-1]),
+            "change_pct": float((closes.iloc[-1] - closes.iloc[0]) / closes.iloc[0] * 100),
+        }
 
 
 @dataclass
@@ -127,39 +174,40 @@ class Stock:
         return cls.from_dict(result.data)
 
     @classmethod
-    def from_api_with_history(
+    def fetch_price_history(
         cls,
         ticker: str,
         source: Optional[str] = None,
         fetcher: Optional["BaseFetcher"] = None,
         tushare_token: Optional[str] = None,
-        history_period: str = "5y",
+        period: str = "5y",
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-    ) -> tuple["Stock", StockHistory]:
+        include_hfq: bool = True,
+    ) -> StockHistory:
         from .data.fetcher import get_fetcher
 
         fetcher = fetcher or get_fetcher(ticker, source, tushare_token)
         
-        quote_result = fetcher.fetch_all(ticker)
-        if not quote_result.success:
-            raise ValueError(f"Failed to fetch {ticker}: {quote_result.errors}")
-        
-        stock = cls.from_dict(quote_result.data)
-        
-        history_result = fetcher.fetch_history(
+        qfq_result = fetcher.fetch_history(
             ticker,
             start_date=start_date,
             end_date=end_date,
-            period=history_period,
+            period=period,
+            adjust="qfq",
         )
         
-        history = StockHistory.from_history_result(history_result)
+        hfq_result = None
+        if include_hfq:
+            hfq_result = fetcher.fetch_history(
+                ticker,
+                start_date=start_date,
+                end_date=end_date,
+                period=period,
+                adjust="hfq",
+            )
         
-        if history.cagr > 0 and stock.growth_rate == 0:
-            stock.growth_rate = history.cagr
-        
-        return stock, history
+        return StockHistory.from_history_result(qfq_result, hfq_result)
 
     @classmethod
     def from_dict(cls, data: dict) -> "Stock":

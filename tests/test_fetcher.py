@@ -88,10 +88,12 @@ class TestStockFromApi:
 
 
 class TestStockFromApiWithHistory:
-    def test_from_api_with_history(self):
+    def test_from_api_separate_history(self):
         from valueinvest import Stock, StockHistory
 
-        stock, history = Stock.from_api_with_history("600000", history_period="1y")
+        stock = Stock.from_api("600000")
+        history = Stock.fetch_price_history("600000", period="1y")
+        
         assert stock.ticker == "600000"
         assert stock.current_price > 0
         assert isinstance(history, StockHistory)
@@ -101,8 +103,29 @@ class TestStockFromApiWithHistory:
     def test_history_calculates_cagr(self):
         from valueinvest import Stock
 
-        stock, history = Stock.from_api_with_history("600000", history_period="3y")
+        history = Stock.fetch_price_history("600000", period="3y")
         assert history.cagr != 0 or history.volatility != 0 or history.max_drawdown != 0
+
+
+class TestStockHistoryMethods:
+    def test_get_recent_prices(self):
+        from valueinvest import Stock
+
+        history = Stock.fetch_price_history("600000", period="1y")
+        recent = history.get_recent_prices(days=10)
+        
+        assert len(recent) > 0
+        assert "date" in recent[0]
+        assert "close" in recent[0]
+
+    def test_get_price_stats(self):
+        from valueinvest import Stock
+
+        history = Stock.fetch_price_history("600000", period="1y")
+        stats = history.get_price_stats(days=30)
+        
+        assert stats["high"] >= stats["low"]
+        assert stats["latest"] > 0
 
 
 class TestHistoryResult:
