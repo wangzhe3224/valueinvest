@@ -1,8 +1,35 @@
-"""
-Stock data container class.
-"""
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from datetime import date
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .data.fetcher import BaseFetcher, HistoryResult
+    import pandas as pd
+
+
+@dataclass
+class StockHistory:
+    ticker: str
+    df: Optional["pd.DataFrame"] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    cagr: float = 0.0
+    volatility: float = 0.0
+    max_drawdown: float = 0.0
+    prices: List[float] = field(default_factory=list)
+
+    @classmethod
+    def from_history_result(cls, result: "HistoryResult") -> "StockHistory":
+        return cls(
+            ticker=result.ticker,
+            df=result.df,
+            start_date=result.start_date,
+            end_date=result.end_date,
+            cagr=result.calculate_cagr(),
+            volatility=result.calculate_volatility(),
+            max_drawdown=result.calculate_max_drawdown(),
+            prices=result.prices,
+        )
 
 
 @dataclass
@@ -26,6 +53,8 @@ class Stock:
     depreciation: float = 0.0
     capex: float = 0.0
     net_working_capital: float = 0.0
+    net_fixed_assets: float = 0.0
+    ebit: float = 0.0
     
     operating_margin: float = 0.0
     tax_rate: float = 0.0
@@ -80,6 +109,59 @@ class Stock:
         return self.fcf / self.shares_outstanding if self.shares_outstanding > 0 else 0
     
     @classmethod
+    def from_api(
+        cls,
+        ticker: str,
+        source: Optional[str] = None,
+        fetcher: Optional["BaseFetcher"] = None,
+        tushare_token: Optional[str] = None,
+    ) -> "Stock":
+        from .data.fetcher import get_fetcher
+
+        fetcher = fetcher or get_fetcher(ticker, source, tushare_token)
+        result = fetcher.fetch_all(ticker)
+
+        if not result.success:
+            raise ValueError(f"Failed to fetch {ticker}: {result.errors}")
+
+        return cls.from_dict(result.data)
+
+    @classmethod
+    def from_api_with_history(
+        cls,
+        ticker: str,
+        source: Optional[str] = None,
+        fetcher: Optional["BaseFetcher"] = None,
+        tushare_token: Optional[str] = None,
+        history_period: str = "5y",
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> tuple["Stock", StockHistory]:
+        from .data.fetcher import get_fetcher
+
+        fetcher = fetcher or get_fetcher(ticker, source, tushare_token)
+        
+        quote_result = fetcher.fetch_all(ticker)
+        if not quote_result.success:
+            raise ValueError(f"Failed to fetch {ticker}: {quote_result.errors}")
+        
+        stock = cls.from_dict(quote_result.data)
+        
+        history_result = fetcher.fetch_history(
+            ticker,
+            start_date=start_date,
+            end_date=end_date,
+            period=history_period,
+        )
+        
+        history = StockHistory.from_history_result(history_result)
+        
+        if history.cagr > 0 and stock.growth_rate == 0:
+            stock.growth_rate = history.cagr
+        
+        return stock, history
+
+    @classmethod
     def from_dict(cls, data: dict) -> "Stock":
         return cls(
             ticker=data.get("ticker", ""),
@@ -98,6 +180,8 @@ class Stock:
             depreciation=data.get("depreciation", 0.0),
             capex=data.get("capex", 0.0),
             net_working_capital=data.get("net_working_capital", 0.0),
+            net_fixed_assets=data.get("net_fixed_assets", 0.0),
+            ebit=data.get("ebit", 0.0),
             operating_margin=data.get("operating_margin", 0.0),
             tax_rate=data.get("tax_rate", 0.0),
             roe=data.get("roe", 0.0),

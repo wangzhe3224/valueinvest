@@ -9,6 +9,7 @@ from .epv import EPV
 from .ddm import DDM, TwoStageDDM
 from .growth import PEG, GARP, RuleOf40
 from .bank import PBValuation, ResidualIncome
+from .magic_formula import MagicFormula
 
 
 class ValuationEngine:
@@ -22,6 +23,7 @@ class ValuationEngine:
         "two_stage_ddm",
         "peg",
         "garp",
+        "magic_formula",
     ]
     
     BANK_METHODS = [
@@ -50,6 +52,7 @@ class ValuationEngine:
         "garp",
         "rule_of_40",
         "graham_formula",
+        "magic_formula",
     ]
     
     def __init__(self):
@@ -67,6 +70,7 @@ class ValuationEngine:
             "rule_of_40": RuleOf40(),
             "pb": PBValuation(),
             "residual_income": ResidualIncome(),
+            "magic_formula": MagicFormula(),
         }
     
     def run_single(self, stock, method: str, **kwargs) -> ValuationResult:
