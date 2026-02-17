@@ -1,0 +1,674 @@
+#!/usr/bin/env python3
+"""
+Stock Analysis Tool - 多维度股票估值分析
+
+Usage:
+    python stock_analyzer.py 600887           # A股伊利股份
+    python stock_analyzer.py AAPL             # 美股苹果
+    python stock_analyzer.py 601398 --bank    # 银行股分析
+    python stock_analyzer.py 600887 --news    # 包含新闻分析
+    python stock_analyzer.py 600887 --news --agent  # 使用 coding agent 深度分析
+"""
+import argparse
+import sys
+import os
+from datetime import datetime
+
+from valueinvest import Stock, StockHistory, ValuationEngine
+from valueinvest.news.base import Market
+
+
+def analyze_stock(
+    ticker: str,
+    company_type: str = "auto",
+    history_period: str = "5y",
+    include_news: bool = False,
+    use_llm: bool = False,
+    use_agent: bool = False,
+    news_days: int = 30,
+    include_insider: bool = False,
+    insider_days: int = 90,
+    include_buyback: bool = False,
+    buyback_days: int = 365,
+):
+    print(f"\n正在获取 {ticker} 基本面数据...")
+
+    try:
+        stock = Stock.from_api(ticker)
+    except Exception as e:
+        print(f"错误: 无法获取基本面数据 - {e}")
+        sys.exit(1)
+
+    print(f"正在获取 {ticker} 价格历史...")
+
+    try:
+        history = Stock.fetch_price_history(ticker, period=history_period)
+    except Exception as e:
+        print(f"警告: 无法获取价格历史 - {e}")
+        history = StockHistory(ticker=ticker)
+
+    if company_type == "auto":
+        company_type = detect_company_type(stock, history)
+
+    set_valuation_params(stock, company_type, history)
+
+    news_analysis = None
+    if include_news:
+        print(f"正在获取 {ticker} 新闻数据...")
+        try:
+            news_analysis = fetch_and_analyze_news(
+                ticker,
+                use_llm=use_llm,
+                use_agent=use_agent,
+                days=news_days,
+                stock=stock,
+                company_type=company_type,
+            )
+        except Exception as e:
+            print(f"警告: 无法获取新闻数据 - {e}")
+
+    insider_result = None
+    if include_insider:
+        print(f"正在获取 {ticker} 内部人交易数据...")
+        try:
+            insider_result = fetch_insider_trades(ticker, days=insider_days)
+        except Exception as e:
+            print(f"警告: 无法获取内部人交易数据 - {e}")
+
+    buyback_result = None
+    if include_buyback:
+        print(f"正在获取 {ticker} 回购数据...")
+        try:
+            buyback_result = fetch_buyback(ticker, days=buyback_days)
+        except Exception as e:
+            print(f"警告: 无法获取回购数据 - {e}")
+
+    print_report(
+        stock, history, company_type, history_period, news_analysis, insider_result, buyback_result
+    )
+
+
+def detect_company_type(stock: Stock, history: StockHistory) -> str:
+    UTILITIES_TICKERS = {
+        "600900",
+        "601985",
+        "600011",
+        "600795",
+        "600886",
+        "000539",
+        "000543",
+        "000600",
+        "001896",
+    }
+
+    if stock.ticker in UTILITIES_TICKERS:
+        return "dividend"
+
+    BANK_TICKERS = {
+        "601398",
+        "601288",
+        "600036",
+        "601166",
+        "600000",
+        "601988",
+        "600016",
+        "601818",
+        "600015",
+        "601998",
+        "002142",
+        "600919",
+        "601229",
+        "600908",
+        "601838",
+    }
+
+    if stock.ticker in BANK_TICKERS:
+        return "bank"
+
+    if stock.dividend_yield and stock.dividend_yield > 3:
+        return "dividend"
+
+    real_cagr = history.cagr_hfq if history.cagr_hfq != 0 else history.cagr
+
+    if real_cagr and real_cagr > 10:
+        return "growth"
+
+    if real_cagr and real_cagr < 5:
+        return "value"
+
+    return "general"
+
+
+def fetch_insider_trades(ticker: str, days: int = 90):
+    from valueinvest.insider.registry import InsiderRegistry
+
+    fetcher = InsiderRegistry.get_fetcher(ticker)
+    result = fetcher.fetch_insider_trades(ticker, days=days)
+    return result
+
+
+def fetch_buyback(ticker: str, days: int = 365):
+    from valueinvest.buyback.registry import BuybackRegistry
+
+    fetcher = BuybackRegistry.get_fetcher(ticker)
+    result = fetcher.fetch_buyback(ticker, days=days)
+    return result
+
+
+def fetch_and_analyze_news(
+    ticker: str,
+    use_llm: bool = False,
+    use_agent: bool = False,
+    days: int = 30,
+    stock=None,
+    company_type: str = "general",
+):
+    from valueinvest.news.registry import NewsRegistry
+    from valueinvest.news.analyzer.keyword_analyzer import KeywordSentimentAnalyzer
+    from valueinvest.news.analyzer.llm_analyzer import LLMSentimentAnalyzer
+    from valueinvest.news.analyzer.agent_analyzer import (
+        AgentSentimentAnalyzer,
+        create_agent_analysis_prompt,
+        enhance_analysis_with_agent_result,
+    )
+
+    fetcher = NewsRegistry.get_fetcher(ticker)
+    fetch_result = fetcher.fetch_all(ticker, days=days)
+
+    if use_agent:
+        print("  使用 Coding Agent 进行深度分析...")
+        analyzer = AgentSentimentAnalyzer()
+        analysis_result = analyzer.analyze_batch(fetch_result.news, ticker)
+        analysis_result.guidance = fetch_result.guidance
+        analysis_result.analyzer_type = "agent"
+
+        if stock:
+            stock_name = stock.name if stock else ticker
+            current_price = stock.current_price if stock else 0.0
+        else:
+            stock_name = ticker
+            current_price = 0.0
+
+        analysis_result.agent_prompt = create_agent_analysis_prompt(
+            ticker=ticker,
+            stock_name=stock_name,
+            current_price=current_price,
+            company_type=company_type,
+            news=fetch_result.news,
+            days=days,
+        )
+
+    elif use_llm:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        analyzer = LLMSentimentAnalyzer(api_key=api_key)
+        analysis_result = analyzer.analyze_batch(fetch_result.news, ticker)
+        analysis_result.guidance = fetch_result.guidance
+
+    else:
+        analyzer = KeywordSentimentAnalyzer()
+        analysis_result = analyzer.analyze_batch(fetch_result.news, ticker)
+        analysis_result.guidance = fetch_result.guidance
+
+    return analysis_result
+
+
+def set_valuation_params(stock: Stock, company_type: str, history: StockHistory):
+    """根据公司类型设置估值参数"""
+
+    # 通用参数
+    stock.cost_of_capital = 9.0
+    stock.discount_rate = 9.0
+    stock.terminal_growth = 2.5
+
+    # 使用历史CAGR作为增长率参考（如果为负则使用保守估计）
+    if history.cagr and history.cagr > 0:
+        stock.growth_rate = min(history.cagr, 10)  # 上限10%
+    else:
+        stock.growth_rate = 3.0
+
+    stock.growth_rate_1_5 = stock.growth_rate
+    stock.growth_rate_6_10 = stock.growth_rate * 0.6  # 后期增长放缓
+
+    # 根据类型调整
+    if company_type == "bank":
+        stock.growth_rate = min(stock.growth_rate, 5)
+        stock.growth_rate_1_5 = stock.growth_rate
+        stock.growth_rate_6_10 = stock.growth_rate * 0.5
+    elif company_type == "dividend":
+        stock.dividend_growth_rate = min(stock.growth_rate, 5)
+    elif company_type == "growth":
+        stock.cost_of_capital = 10.0  # 成长股要求更高回报
+        stock.discount_rate = 10.0
+
+
+def print_report(
+    stock: Stock,
+    history: StockHistory,
+    company_type: str,
+    history_period: str = "5y",
+    news_analysis=None,
+    insider_result=None,
+    buyback_result=None,
+):
+    engine = ValuationEngine()
+
+    if company_type == "bank":
+        results = engine.run_bank(stock)
+    elif company_type == "dividend":
+        results = engine.run_dividend(stock)
+    elif company_type == "growth":
+        results = engine.run_growth(stock)
+    else:
+        results = engine.run_all(stock)
+
+    valid_results = [
+        r for r in results if r.fair_value and r.fair_value > 0 and "Error" not in r.assessment
+    ]
+
+    print("\n" + "=" * 70)
+    print(f"{stock.name} ({stock.ticker}) - 深度分析报告")
+    print("=" * 70)
+
+    print(f"\n【公司概况】")
+    print(f"  公司: {stock.name}")
+    print(f"  代码: {stock.ticker}")
+    print(f"  类型: {get_type_label(company_type)}")
+    print(f"  当前股价: ¥{stock.current_price:.2f}")
+    print(f"  总市值: ¥{stock.current_price * stock.shares_outstanding / 1e8:.0f}亿")
+
+    print(f"\n【最新财务数据】")
+    if stock.revenue:
+        print(f"  营业收入: ¥{stock.revenue/1e8:.0f}亿")
+    if stock.net_income:
+        print(f"  净利润: ¥{stock.net_income/1e8:.0f}亿")
+    print(f"  每股收益 (EPS): ¥{stock.eps:.2f}")
+    print(f"  每股净资产 (BVPS): ¥{stock.bvps:.2f}")
+    print(f"  市盈率 (PE): {stock.pe_ratio:.1f}倍")
+    print(f"  市净率 (PB): {stock.pb_ratio:.2f}倍")
+
+    print(f"\n【历史表现 ({history_period})】")
+    if history.prices:
+        print(f"  股价CAGR (qfq): {history.cagr:.2f}%")
+        print(f"  真实回报 (hfq): {history.cagr_hfq:.2f}%")
+        print(f"  年化波动率: {history.volatility:.2f}%")
+        print(f"  最大回撤: {history.max_drawdown:.2f}%")
+
+        recent_stats = history.get_price_stats(days=30, adjust="qfq")
+        if recent_stats:
+            print()
+            print(f"【近30日价格 (QFQ前复权)】")
+            print(f"  最高: ¥{recent_stats['high']:.2f}")
+            print(f"  最低: ¥{recent_stats['low']:.2f}")
+            print(f"  均价: ¥{recent_stats['avg']:.2f}")
+            print(f"  最新: ¥{recent_stats['latest']:.2f}")
+            print(f"  涨跌幅: {recent_stats['change_pct']:+.2f}%")
+
+        if history.cagr_hfq != 0:
+            print()
+            print(f"【真实投资回报 (HFQ后复权)】")
+            print(f"  含分红再投资CAGR: {history.cagr_hfq:.2f}%")
+            stats_hfq = history.get_price_stats(days=30, adjust="hfq")
+            if stats_hfq:
+                print(f"  (后复权价格: ¥{stats_hfq['latest']:.0f})")
+
+        recent_prices = history.get_recent_prices(days=10, adjust="qfq")
+        if recent_prices:
+            print()
+            print(f"【近10日收盘价 (QFQ)】")
+            for i, p in enumerate(recent_prices[-10:]):
+                change = ""
+                if i > 0:
+                    prev_close = recent_prices[i - 1]["close"]
+                    if prev_close > 0:
+                        change = f" ({(p['close']/prev_close - 1)*100:+.2f}%)"
+                print(f"  {p['date']}: ¥{p['close']:.2f}{change}")
+
+        print()
+        print("  注: QFQ(前复权)用于与估值比较, HFQ(后复权)反映真实含分红回报")
+    else:
+        print("  (无历史价格数据)")
+
+    if news_analysis and news_analysis.news:
+        print_news_analysis(news_analysis)
+
+    if insider_result and insider_result.has_trades:
+        print_insider_trades(insider_result)
+
+    if buyback_result and buyback_result.has_records:
+        print_buyback(buyback_result)
+
+    if buyback_result and buyback_result.summary and buyback_result.summary.has_buyback:
+        print_shareholder_yield(stock, buyback_result.summary)
+
+    print("\n" + "=" * 70)
+    print("【估值汇总】")
+    print("=" * 70)
+    print()
+
+    sorted_results = sorted(valid_results, key=lambda x: x.fair_value)
+    print("| 方法 | 公允价值 | 溢价/折价 | 评估 |")
+    print("|------|----------|-----------|------|")
+    for r in sorted_results:
+        name = r.method[:20]
+        print(
+            f"| {name:20} | ¥{r.fair_value:>7.2f} | {r.premium_discount:>+7.1f}% | {r.assessment[:10]:10} |"
+        )
+
+    print()
+    fair_values = [r.fair_value for r in valid_results]
+    avg_value = sum(fair_values) / len(fair_values)
+    median_value = sorted(fair_values)[len(fair_values) // 2]
+
+    print("【统计汇总】")
+    print(f"  有效估值方法数: {len(valid_results)}")
+    print(f"  公允价值范围: ¥{min(fair_values):.2f} - ¥{max(fair_values):.2f}")
+    print(f"  平均公允价值: ¥{avg_value:.2f}")
+    print(f"  中位数公允价值: ¥{median_value:.2f}")
+
+    avg_premium = ((avg_value - stock.current_price) / stock.current_price) * 100
+
+    undervalued = len([r for r in valid_results if r.assessment == "Undervalued"])
+    overvalued = len([r for r in valid_results if r.assessment == "Overvalued"])
+
+    print()
+    print(f"  相对平均值: {avg_premium:+.1f}%")
+    print(f"  低估方法数: {undervalued}/{len(valid_results)}")
+    print(f"  高估方法数: {overvalued}/{len(valid_results)}")
+
+    print("\n" + "=" * 70)
+    print("【最终结论】")
+    print("=" * 70)
+    print()
+
+    conservative = sorted(fair_values)[:3]
+    optimistic = sorted(fair_values)[-3:]
+
+    cons_avg = sum(conservative) / len(conservative)
+    opt_avg = sum(optimistic) / len(optimistic)
+
+    print(
+        f"估值区间: ¥{cons_avg:.0f}-{sorted(fair_values)[len(fair_values)//2]:.0f} (保守) / ¥{stock.current_price:.0f} (现价) / ¥{opt_avg:.0f}+ (乐观)"
+    )
+    print()
+
+    if avg_premium < -15:
+        rating = "低估 (Undervalued)"
+        advice = "当前价格具有安全边际，可考虑建仓"
+    elif avg_premium > 15:
+        rating = "高估 (Overvalued)"
+        advice = "当前价格偏高，等待回调"
+    else:
+        rating = "合理 (Fair)"
+        advice = "当前价格处于合理区间"
+
+    print(f"【综合评级】: {rating}")
+    print()
+    print("投资建议:")
+
+    target_price = median_value * 0.85
+    stop_loss = cons_avg * 0.9
+
+    print(
+        f"  1. 已持有者: {'继续持有' if stock.dividend_yield and stock.dividend_yield > 3 else '持有观望'}"
+    )
+    print(f"  2. 潜在买入: 等待回调至¥{target_price:.0f}以下")
+    print(f"  3. 目标价位: ¥{target_price:.0f} (提供15%+安全边际)")
+    print(f"  4. 止损位: ¥{stop_loss:.0f}")
+    print()
+
+    if stock.dividend_yield:
+        div_return = stock.dividend_yield
+    else:
+        div_return = 0
+
+    print("预期回报:")
+    print(f"  保守: 股息{div_return:.1f}% + 增长0-2% = {div_return:.1f}-{div_return+2:.1f}%/年")
+    print(
+        f"  中性: 股息{div_return:.1f}% + 增长{stock.growth_rate:.0f}% = {div_return+stock.growth_rate:.1f}%/年"
+    )
+    print(
+        f"  乐观: 股息{div_return:.1f}% + 增长{stock.growth_rate*1.5:.0f}% = {div_return+stock.growth_rate*1.5:.1f}%/年"
+    )
+    print()
+
+
+def print_news_analysis(analysis):
+    print("\n" + "=" * 70)
+    print("【新闻情感分析】")
+    print("=" * 70)
+    print()
+
+    sentiment_emoji = {
+        "positive": "📈",
+        "slightly_positive": "↗️",
+        "neutral": "➡️",
+        "slightly_negative": "↘️",
+        "negative": "📉",
+    }
+    emoji = sentiment_emoji.get(analysis.sentiment_label, "➡️")
+
+    print(f"  情感得分: {emoji} {analysis.sentiment_score:+.2f} ({analysis.sentiment_label})")
+    print(f"  分析新闻数: {len(analysis.news)} 条 (7日内: {analysis.news_count_7d})")
+    print(
+        f"  正面/负面/中性: {analysis.positive_count}/{analysis.negative_count}/{analysis.neutral_count}"
+    )
+    print(f"  置信度: {analysis.confidence:.0%}")
+
+    if analysis.key_themes:
+        print()
+        print("【关键主题】")
+        for theme in analysis.key_themes[:5]:
+            print(f"  • {theme}")
+
+    if analysis.risks:
+        print()
+        print("【风险提示】")
+        for risk in analysis.risks[:5]:
+            print(f"  ⚠️ {risk}")
+
+    if analysis.catalysts:
+        print()
+        print("【潜在催化剂】")
+        for catalyst in analysis.catalysts[:5]:
+            print(f"  ✅ {catalyst}")
+
+    recent_news = sorted(analysis.news, key=lambda n: n.publish_date, reverse=True)[:5]
+    if recent_news:
+        print()
+        print("【近期重要新闻】")
+        for news in recent_news:
+            sentiment_mark = "+" if news.is_positive else ("-" if news.is_negative else " ")
+            date_str = news.publish_date.strftime("%m-%d")
+            title = news.title[:40] + "..." if len(news.title) > 40 else news.title
+            print(f"  [{sentiment_mark}] {date_str} {title}")
+
+
+def print_insider_trades(insider_result):
+    print("\n" + "=" * 70)
+    print("【内部人交易】")
+    print("=" * 70)
+    print()
+
+    summary = insider_result.summary
+    if summary:
+        sentiment_emoji = {"bullish": "📈", "bearish": "📉", "neutral": "➡️"}
+        emoji = sentiment_emoji.get(summary.sentiment, "➡️")
+
+        print(f"  情绪: {emoji} {summary.sentiment.upper()}")
+        print(
+            f"  交易笔数: {summary.total_trades} (买入: {summary.buy_count}, 卖出: {summary.sell_count})"
+        )
+        print(f"  净交易: {summary.net_shares:+,.0f} 股 (¥{summary.net_value:+,.0f})")
+        print(f"  参与高管: {summary.unique_insiders} 人")
+        print(f"  CEO/CFO交易: {summary.key_insider_trades} 笔")
+
+        if summary.buy_value > 0 or summary.sell_value > 0:
+            print(f"  买入比例: {summary.buy_ratio:.0%}")
+
+    recent_trades = insider_result.trades[:10]
+    if recent_trades:
+        print()
+        print("【近期交易】")
+        print("| 日期 | 高管 | 职位 | 类型 | 股数 | 金额 |")
+        print("|------|------|------|------|------|------|")
+        for trade in recent_trades:
+            date_str = trade.trade_date.strftime("%m-%d")
+            name = trade.insider_name[:6]
+            title = trade.title.value[:6]
+            ttype = "买入" if trade.is_buy else ("卖出" if trade.is_sell else "其他")
+            shares = f"{trade.shares:,.0f}"
+            value = f"¥{trade.value:,.0f}" if trade.value else "-"
+            print(f"| {date_str} | {name} | {title} | {ttype} | {shares} | {value} |")
+
+
+def print_buyback(buyback_result):
+    print("\n" + "=" * 70)
+    print("【回购分析】")
+    print("=" * 70)
+    print()
+
+    summary = buyback_result.summary
+    if summary:
+        sentiment_emoji = {
+            "aggressive": "🟢",
+            "moderate": "🟡",
+            "minimal": "⚪",
+            "none": "⚫",
+        }
+        emoji = sentiment_emoji.get(summary.sentiment.value, "➡️")
+
+        print(f"  回购情绪: {emoji} {summary.sentiment.value.upper()}")
+        print(f"  回购收益率: {summary.buyback_yield:.2f}%")
+        print(f"  总股东收益率: {summary.total_shareholder_yield:.2f}%")
+
+        if summary.shares_reduction_rate > 0:
+            print(f"  股份减少率: {summary.shares_reduction_rate:.2f}%/年")
+
+        if summary.yearly_amounts:
+            print(f"  年度回购:")
+            for year, amount in sorted(summary.yearly_amounts.items(), reverse=True)[:4]:
+                if buyback_result.market == Market.US:
+                    print(f"    {year}: ${amount/1e9:.2f}B")
+                else:
+                    print(f"    {year}: ¥{amount/1e8:.2f}亿")
+
+        if summary.active_programs > 0:
+            print(f"  进行中计划: {summary.active_programs} 个")
+
+    recent_records = buyback_result.records[:5]
+    if recent_records:
+        print()
+        print("【回购记录】")
+        print("| 日期 | 股数 | 金额 | 状态 |")
+        print("|------|------|------|------|")
+        for record in recent_records:
+            date_str = record.announce_date.strftime("%m-%d") if record.announce_date else "-"
+            shares = f"{record.shares_repurchased:,.0f}" if record.shares_repurchased else "-"
+            amount = f"¥{record.amount:,.0f}" if record.amount else "-"
+            status = "完成" if record.is_completed else "进行中"
+            print(f"| {date_str} | {shares} | {amount} | {status} |")
+
+
+def print_shareholder_yield(stock, buyback_summary):
+    print("\n" + "=" * 70)
+    print("【股东回报分析】")
+    print("=" * 70)
+    print()
+
+    print("  ┌─────────────────────────────────────┐")
+    print(f"  │  股息率:      {buyback_summary.dividend_yield:>6.2f}%           │")
+    print(f"  │  回购收益率:  {buyback_summary.buyback_yield:>6.2f}%           │")
+    print("  ├─────────────────────────────────────┤")
+    print(f"  │  总股东收益率: {buyback_summary.total_shareholder_yield:>6.2f}%          │")
+    print("  └─────────────────────────────────────┘")
+    print()
+
+    if buyback_summary.exceeds_dividend:
+        print("  💡 回购收益率 > 股息率，公司更倾向于通过回购回报股东")
+
+    if buyback_summary.is_aggressive:
+        print("  💡 激进回购 (>3%)，公司对自身价值有信心")
+
+
+def get_type_label(company_type: str) -> str:
+    labels = {
+        "bank": "银行/金融",
+        "dividend": "分红股",
+        "growth": "成长股",
+        "value": "价值股",
+        "general": "一般",
+    }
+    return labels.get(company_type, "一般")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="多维度股票估值分析工具",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例:
+  python stock_analyzer.py 600887           # A股伊利股份
+  python stock_analyzer.py AAPL             # 美股苹果
+  python stock_analyzer.py 601398 --bank    # 银行股分析
+  python stock_analyzer.py 600887 --period 3y  # 3年历史数据
+  python stock_analyzer.py 600887 --news    # 包含新闻情感分析
+  python stock_analyzer.py AAPL --news --llm  # 使用LLM API进行新闻分析
+  python stock_analyzer.py 600887 --news --agent  # 使用 Coding Agent 深度分析
+  python stock_analyzer.py 600887 --insider  # 包含内部人交易分析
+  python stock_analyzer.py AAPL --insider --insider-days 180  # 180天内部人交易
+  python stock_analyzer.py AAPL --buyback   # 包含回购分析 (美股推荐)
+  python stock_analyzer.py 600887 --buyback # 包含回购分析 (A股)
+        """,
+    )
+
+    parser.add_argument("ticker", help="股票代码 (如 600887, AAPL)")
+    parser.add_argument(
+        "--type",
+        "-t",
+        choices=["auto", "bank", "dividend", "growth", "value"],
+        default="auto",
+        help="公司类型 (默认自动检测)",
+    )
+    parser.add_argument("--bank", "-b", action="store_true", help="银行股分析 (等同于 --type bank)")
+    parser.add_argument("--dividend", "-d", action="store_true", help="分红股分析")
+    parser.add_argument("--growth", "-g", action="store_true", help="成长股分析")
+    parser.add_argument("--period", "-p", default="5y", help="历史数据周期 (默认5y)")
+    parser.add_argument("--news", "-n", action="store_true", help="包含新闻情感分析")
+    parser.add_argument(
+        "--llm", action="store_true", help="使用LLM API进行新闻分析 (需要OPENAI_API_KEY)"
+    )
+    parser.add_argument(
+        "--agent", action="store_true", help="使用 Coding Agent 进行深度新闻分析 (无需API key)"
+    )
+    parser.add_argument("--news-days", type=int, default=30, help="新闻分析天数 (默认30)")
+    parser.add_argument("--insider", "-i", action="store_true", help="包含内部人交易分析")
+    parser.add_argument("--insider-days", type=int, default=90, help="内部人交易分析天数 (默认90)")
+    parser.add_argument("--buyback", action="store_true", help="包含回购分析 (美股推荐)")
+    parser.add_argument("--buyback-days", type=int, default=365, help="回购分析天数 (默认365)")
+
+    args = parser.parse_args()
+
+    if args.bank:
+        args.type = "bank"
+    elif args.dividend:
+        args.type = "dividend"
+    elif args.growth:
+        args.type = "growth"
+
+    analyze_stock(
+        args.ticker,
+        args.type,
+        args.period,
+        include_news=args.news,
+        use_llm=args.llm,
+        use_agent=args.agent,
+        news_days=args.news_days,
+        include_insider=args.insider,
+        insider_days=args.insider_days,
+        include_buyback=args.buyback,
+        buyback_days=args.buyback_days,
+    )
+
+
+if __name__ == "__main__":
+    main()
