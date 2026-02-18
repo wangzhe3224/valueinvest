@@ -6,15 +6,26 @@ Usage:
     python stock_analyzer.py 600887           # A股伊利股份
     python stock_analyzer.py AAPL             # 美股苹果
     python stock_analyzer.py 601398 --bank    # 银行股分析
+    python stock_analyzer.py 600887 --news    # 包含新闻分析
+    python stock_analyzer.py 600887 --news --agent  # 使用 coding agent 深度分析
 """
 import argparse
 import sys
+import os
 from datetime import datetime
 
 from valueinvest import Stock, StockHistory, ValuationEngine
 
 
-def analyze_stock(ticker: str, company_type: str = "auto", history_period: str = "5y"):
+def analyze_stock(
+    ticker: str, 
+    company_type: str = "auto", 
+    history_period: str = "5y",
+    include_news: bool = False,
+    use_llm: bool = False,
+    use_agent: bool = False,
+    news_days: int = 30,
+):
     
     print(f"\n正在获取 {ticker} 基本面数据...")
     
@@ -37,7 +48,22 @@ def analyze_stock(ticker: str, company_type: str = "auto", history_period: str =
     
     set_valuation_params(stock, company_type, history)
     
-    print_report(stock, history, company_type, history_period)
+    news_analysis = None
+    if include_news:
+        print(f"正在获取 {ticker} 新闻数据...")
+        try:
+            news_analysis = fetch_and_analyze_news(
+                ticker, 
+                use_llm=use_llm, 
+                use_agent=use_agent, 
+                days=news_days,
+                stock=stock,
+                company_type=company_type,
+            )
+        except Exception as e:
+            print(f"警告: 无法获取新闻数据 - {e}")
+    
+    print_report(stock, history, company_type, history_period, news_analysis)
 
 
 def detect_company_type(stock: Stock, history: StockHistory) -> str:
@@ -73,6 +99,63 @@ def detect_company_type(stock: Stock, history: StockHistory) -> str:
     return "general"
 
 
+def fetch_and_analyze_news(
+    ticker: str, 
+    use_llm: bool = False, 
+    use_agent: bool = False,
+    days: int = 30,
+    stock=None,
+    company_type: str = "general",
+):
+    from valueinvest.news.registry import NewsRegistry
+    from valueinvest.news.analyzer.keyword_analyzer import KeywordSentimentAnalyzer
+    from valueinvest.news.analyzer.llm_analyzer import LLMSentimentAnalyzer
+    from valueinvest.news.analyzer.agent_analyzer import (
+        AgentSentimentAnalyzer,
+        create_agent_analysis_prompt,
+        enhance_analysis_with_agent_result,
+    )
+    
+    fetcher = NewsRegistry.get_fetcher(ticker)
+    fetch_result = fetcher.fetch_all(ticker, days=days)
+    
+    if use_agent:
+        print("  使用 Coding Agent 进行深度分析...")
+        analyzer = AgentSentimentAnalyzer()
+        analysis_result = analyzer.analyze_batch(fetch_result.news, ticker)
+        analysis_result.guidance = fetch_result.guidance
+        analysis_result.analyzer_type = "agent"
+        
+        if stock:
+            stock_name = stock.name if stock else ticker
+            current_price = stock.current_price if stock else 0.0
+        else:
+            stock_name = ticker
+            current_price = 0.0
+        
+        analysis_result.agent_prompt = create_agent_analysis_prompt(
+            ticker=ticker,
+            stock_name=stock_name,
+            current_price=current_price,
+            company_type=company_type,
+            news=fetch_result.news,
+            days=days,
+        )
+        
+    elif use_llm:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        analyzer = LLMSentimentAnalyzer(api_key=api_key)
+        analysis_result = analyzer.analyze_batch(fetch_result.news, ticker)
+        analysis_result.guidance = fetch_result.guidance
+        
+    else:
+        analyzer = KeywordSentimentAnalyzer()
+        analysis_result = analyzer.analyze_batch(fetch_result.news, ticker)
+        analysis_result.guidance = fetch_result.guidance
+    
+    return analysis_result
+
+
 def set_valuation_params(stock: Stock, company_type: str, history: StockHistory):
     """根据公司类型设置估值参数"""
     
@@ -102,7 +185,7 @@ def set_valuation_params(stock: Stock, company_type: str, history: StockHistory)
         stock.discount_rate = 10.0
 
 
-def print_report(stock: Stock, history: StockHistory, company_type: str, history_period: str = "5y"):
+def print_report(stock: Stock, history: StockHistory, company_type: str, history_period: str = "5y", news_analysis=None):
     engine = ValuationEngine()
     
     if company_type == "bank":
@@ -179,7 +262,9 @@ def print_report(stock: Stock, history: StockHistory, company_type: str, history
     else:
         print("  (无历史价格数据)")
     
-    # 估值汇总表
+    if news_analysis and news_analysis.news:
+        print_news_analysis(news_analysis)
+    
     print("\n" + "=" * 70)
     print("【估值汇总】")
     print("=" * 70)
@@ -192,7 +277,6 @@ def print_report(stock: Stock, history: StockHistory, company_type: str, history
         name = r.method[:20]
         print(f"| {name:20} | ¥{r.fair_value:>7.2f} | {r.premium_discount:>+7.1f}% | {r.assessment[:10]:10} |")
     
-    # 统计分析
     print()
     fair_values = [r.fair_value for r in valid_results]
     avg_value = sum(fair_values) / len(fair_values)
@@ -204,7 +288,6 @@ def print_report(stock: Stock, history: StockHistory, company_type: str, history
     print(f"  平均公允价值: ¥{avg_value:.2f}")
     print(f"  中位数公允价值: ¥{median_value:.2f}")
     
-    # 综合评估
     avg_premium = ((avg_value - stock.current_price) / stock.current_price) * 100
     
     undervalued = len([r for r in valid_results if r.assessment == "Undervalued"])
@@ -215,15 +298,13 @@ def print_report(stock: Stock, history: StockHistory, company_type: str, history
     print(f"  低估方法数: {undervalued}/{len(valid_results)}")
     print(f"  高估方法数: {overvalued}/{len(valid_results)}")
     
-    # 最终结论
     print("\n" + "=" * 70)
     print("【最终结论】")
     print("=" * 70)
     print()
     
-    # 确定估值区间
-    conservative = sorted(fair_values)[:3]  # 最保守3个
-    optimistic = sorted(fair_values)[-3:]   # 最乐观3个
+    conservative = sorted(fair_values)[:3]
+    optimistic = sorted(fair_values)[-3:]
     
     cons_avg = sum(conservative) / len(conservative)
     opt_avg = sum(optimistic) / len(optimistic)
@@ -231,7 +312,6 @@ def print_report(stock: Stock, history: StockHistory, company_type: str, history
     print(f"估值区间: ¥{cons_avg:.0f}-{sorted(fair_values)[len(fair_values)//2]:.0f} (保守) / ¥{stock.current_price:.0f} (现价) / ¥{opt_avg:.0f}+ (乐观)")
     print()
     
-    # 综合评级
     if avg_premium < -15:
         rating = "低估 (Undervalued)"
         advice = "当前价格具有安全边际，可考虑建仓"
@@ -246,9 +326,8 @@ def print_report(stock: Stock, history: StockHistory, company_type: str, history
     print()
     print("投资建议:")
     
-    # 目标价和止损价
-    target_price = median_value * 0.85  # 15%安全边际
-    stop_loss = cons_avg * 0.9  # 最保守估值下浮10%
+    target_price = median_value * 0.85
+    stop_loss = cons_avg * 0.9
     
     print(f"  1. 已持有者: {'继续持有' if stock.dividend_yield and stock.dividend_yield > 3 else '持有观望'}")
     print(f"  2. 潜在买入: 等待回调至¥{target_price:.0f}以下")
@@ -256,7 +335,6 @@ def print_report(stock: Stock, history: StockHistory, company_type: str, history
     print(f"  4. 止损位: ¥{stop_loss:.0f}")
     print()
     
-    # 预期回报
     if stock.dividend_yield:
         div_return = stock.dividend_yield
     else:
@@ -267,6 +345,49 @@ def print_report(stock: Stock, history: StockHistory, company_type: str, history
     print(f"  中性: 股息{div_return:.1f}% + 增长{stock.growth_rate:.0f}% = {div_return+stock.growth_rate:.1f}%/年")
     print(f"  乐观: 股息{div_return:.1f}% + 增长{stock.growth_rate*1.5:.0f}% = {div_return+stock.growth_rate*1.5:.1f}%/年")
     print()
+
+
+def print_news_analysis(analysis):
+    print("\n" + "=" * 70)
+    print("【新闻情感分析】")
+    print("=" * 70)
+    print()
+    
+    sentiment_emoji = {"positive": "📈", "slightly_positive": "↗️", "neutral": "➡️", "slightly_negative": "↘️", "negative": "📉"}
+    emoji = sentiment_emoji.get(analysis.sentiment_label, "➡️")
+    
+    print(f"  情感得分: {emoji} {analysis.sentiment_score:+.2f} ({analysis.sentiment_label})")
+    print(f"  分析新闻数: {len(analysis.news)} 条 (7日内: {analysis.news_count_7d})")
+    print(f"  正面/负面/中性: {analysis.positive_count}/{analysis.negative_count}/{analysis.neutral_count}")
+    print(f"  置信度: {analysis.confidence:.0%}")
+    
+    if analysis.key_themes:
+        print()
+        print("【关键主题】")
+        for theme in analysis.key_themes[:5]:
+            print(f"  • {theme}")
+    
+    if analysis.risks:
+        print()
+        print("【风险提示】")
+        for risk in analysis.risks[:5]:
+            print(f"  ⚠️ {risk}")
+    
+    if analysis.catalysts:
+        print()
+        print("【潜在催化剂】")
+        for catalyst in analysis.catalysts[:5]:
+            print(f"  ✅ {catalyst}")
+    
+    recent_news = sorted(analysis.news, key=lambda n: n.publish_date, reverse=True)[:5]
+    if recent_news:
+        print()
+        print("【近期重要新闻】")
+        for news in recent_news:
+            sentiment_mark = "+" if news.is_positive else ("-" if news.is_negative else " ")
+            date_str = news.publish_date.strftime("%m-%d")
+            title = news.title[:40] + "..." if len(news.title) > 40 else news.title
+            print(f"  [{sentiment_mark}] {date_str} {title}")
 
 
 def get_type_label(company_type: str) -> str:
@@ -290,6 +411,9 @@ def main():
   python stock_analyzer.py AAPL             # 美股苹果
   python stock_analyzer.py 601398 --bank    # 银行股分析
   python stock_analyzer.py 600887 --period 3y  # 3年历史数据
+  python stock_analyzer.py 600887 --news    # 包含新闻情感分析
+  python stock_analyzer.py AAPL --news --llm  # 使用LLM API进行新闻分析
+  python stock_analyzer.py 600887 --news --agent  # 使用 Coding Agent 深度分析
         """
     )
     
@@ -300,6 +424,10 @@ def main():
     parser.add_argument("--dividend", "-d", action="store_true", help="分红股分析")
     parser.add_argument("--growth", "-g", action="store_true", help="成长股分析")
     parser.add_argument("--period", "-p", default="5y", help="历史数据周期 (默认5y)")
+    parser.add_argument("--news", "-n", action="store_true", help="包含新闻情感分析")
+    parser.add_argument("--llm", action="store_true", help="使用LLM API进行新闻分析 (需要OPENAI_API_KEY)")
+    parser.add_argument("--agent", action="store_true", help="使用 Coding Agent 进行深度新闻分析 (无需API key)")
+    parser.add_argument("--news-days", type=int, default=30, help="新闻分析天数 (默认30)")
     
     args = parser.parse_args()
     
@@ -310,9 +438,15 @@ def main():
     elif args.growth:
         args.type = "growth"
     
-    args = parser.parse_args()
-    
-    analyze_stock(args.ticker, args.type, args.period)
+    analyze_stock(
+        args.ticker, 
+        args.type, 
+        args.period,
+        include_news=args.news,
+        use_llm=args.llm,
+        use_agent=args.agent,
+        news_days=args.news_days,
+    )
 
 
 if __name__ == "__main__":
