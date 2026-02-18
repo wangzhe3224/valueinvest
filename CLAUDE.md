@@ -45,6 +45,13 @@ valueinvest/
 │       ├── base.py       # BaseSentimentAnalyzer (ABC)
 │       ├── keyword_analyzer.py  # Keyword-based sentiment
 │       └── llm_analyzer.py      # LLM-based sentiment (OpenAI)
+├── insider/              # Insider trading data
+│   ├── base.py           # InsiderTrade, InsiderSummary, InsiderFetchResult
+│   ├── registry.py       # Market detection & fetcher registry
+│   └── fetcher/
+│       ├── base.py       # BaseInsiderFetcher (ABC)
+│       ├── akshare_insider.py  # A-share (同花顺高管增减持)
+│       └── yfinance_insider.py # US stock insider transactions
 ├── data/
 │   ├── presets.py        # Pre-configured stock data
 │   └── fetcher/          # Data fetching module
@@ -172,6 +179,25 @@ if analysis.has_guidance:
         print(f"vs Consensus: {guidance.guidance_vs_consensus}")
 ```
 
+### Insider Trading
+```python
+from valueinvest.insider import InsiderRegistry
+
+# Auto-detect market
+fetcher = InsiderRegistry.get_fetcher("600887")
+result = fetcher.fetch_insider_trades("600887", days=365)
+
+# Access summary
+print(f"Sentiment: {result.summary.sentiment}")  # bullish/bearish/neutral
+print(f"Buys: {result.summary.buy_count}, Sells: {result.summary.sell_count}")
+print(f"Net shares: {result.summary.net_shares:+,.0f}")
+print(f"Net value: ¥{result.summary.net_value:+,.0f}")
+
+# Access individual trades
+for trade in result.trades[:5]:
+    print(f"{trade.trade_date}: {trade.insider_name} {trade.trade_type.value} {trade.shares:,.0f} @ ¥{trade.price}")
+```
+
 ### Enhanced Reporter
 ```python
 from valueinvest.reports.enhanced_reporter import EnhancedReporter
@@ -202,6 +228,10 @@ python stock_analyzer.py 600887 --news    # Include news sentiment (keyword-base
 python stock_analyzer.py AAPL --news --llm  # Use LLM API (requires OPENAI_API_KEY)
 python stock_analyzer.py 600887 --news --agent  # Use coding agent (no API key needed)
 python stock_analyzer.py 600887 --news --news-days 60  # 60-day news
+
+# With insider trading analysis
+python stock_analyzer.py 600887 --insider  # Include insider trading
+python stock_analyzer.py AAPL --insider --insider-days 180  # 180-day insider trades
 ```
 
 ## Data Sources
@@ -222,6 +252,13 @@ Auto-detection by ticker format:
 |--------|---------|------|----------|------|
 | AKShare | A-shares | ✅ East Money | ❌ | Free |
 | yfinance | US/Intl | ✅ Yahoo Finance | ✅ Analyst data | Free |
+
+## Insider Trading Data Sources
+
+| Source | Markets | Data | Auth |
+|--------|---------|------|------|
+| AKShare (同花顺) | A-shares | ✅ 高管增减持 | Free |
+| yfinance | US/Intl | ✅ Insider purchases | Free |
 
 ## QFQ vs HFQ Price Adjustment
 
@@ -275,6 +312,30 @@ NewsRegistry.register_fetcher(Market.HK, HKNewsFetcher)
 NewsRegistry.register_detector(
     lambda t: Market.HK if t.isdigit() and len(t) == 5 else None
 )
+```
+
+## Extending Insider Module
+
+### Adding a New Market
+```python
+from valueinvest.news.base import Market
+from valueinvest.insider.base import InsiderTrade, InsiderFetchResult
+from valueinvest.insider.fetcher.base import BaseInsiderFetcher
+from valueinvest.insider.registry import InsiderRegistry
+
+class HKInsiderFetcher(BaseInsiderFetcher):
+    market = Market.HK
+    
+    @property
+    def source_name(self) -> str:
+        return "hk_source"
+    
+    def fetch_insider_trades(self, ticker, days=90, start_date=None, end_date=None):
+        # Implement insider trading fetching
+        ...
+
+# Register fetcher
+InsiderRegistry.register_fetcher(Market.HK, HKInsiderFetcher)
 ```
 
 ## Conventions

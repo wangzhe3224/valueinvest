@@ -25,6 +25,8 @@ def analyze_stock(
     use_llm: bool = False,
     use_agent: bool = False,
     news_days: int = 30,
+    include_insider: bool = False,
+    insider_days: int = 90,
 ):
     
     print(f"\n正在获取 {ticker} 基本面数据...")
@@ -63,7 +65,15 @@ def analyze_stock(
         except Exception as e:
             print(f"警告: 无法获取新闻数据 - {e}")
     
-    print_report(stock, history, company_type, history_period, news_analysis)
+    insider_result = None
+    if include_insider:
+        print(f"正在获取 {ticker} 内部人交易数据...")
+        try:
+            insider_result = fetch_insider_trades(ticker, days=insider_days)
+        except Exception as e:
+            print(f"警告: 无法获取内部人交易数据 - {e}")
+    
+    print_report(stock, history, company_type, history_period, news_analysis, insider_result)
 
 
 def detect_company_type(stock: Stock, history: StockHistory) -> str:
@@ -97,6 +107,14 @@ def detect_company_type(stock: Stock, history: StockHistory) -> str:
         return "value"
     
     return "general"
+
+
+def fetch_insider_trades(ticker: str, days: int = 90):
+    from valueinvest.insider.registry import InsiderRegistry
+    
+    fetcher = InsiderRegistry.get_fetcher(ticker)
+    result = fetcher.fetch_insider_trades(ticker, days=days)
+    return result
 
 
 def fetch_and_analyze_news(
@@ -185,7 +203,7 @@ def set_valuation_params(stock: Stock, company_type: str, history: StockHistory)
         stock.discount_rate = 10.0
 
 
-def print_report(stock: Stock, history: StockHistory, company_type: str, history_period: str = "5y", news_analysis=None):
+def print_report(stock: Stock, history: StockHistory, company_type: str, history_period: str = "5y", news_analysis=None, insider_result=None):
     engine = ValuationEngine()
     
     if company_type == "bank":
@@ -264,6 +282,9 @@ def print_report(stock: Stock, history: StockHistory, company_type: str, history
     
     if news_analysis and news_analysis.news:
         print_news_analysis(news_analysis)
+    
+    if insider_result and insider_result.has_trades:
+        print_insider_trades(insider_result)
     
     print("\n" + "=" * 70)
     print("【估值汇总】")
@@ -390,6 +411,42 @@ def print_news_analysis(analysis):
             print(f"  [{sentiment_mark}] {date_str} {title}")
 
 
+def print_insider_trades(insider_result):
+    print("\n" + "=" * 70)
+    print("【内部人交易】")
+    print("=" * 70)
+    print()
+    
+    summary = insider_result.summary
+    if summary:
+        sentiment_emoji = {"bullish": "📈", "bearish": "📉", "neutral": "➡️"}
+        emoji = sentiment_emoji.get(summary.sentiment, "➡️")
+        
+        print(f"  情绪: {emoji} {summary.sentiment.upper()}")
+        print(f"  交易笔数: {summary.total_trades} (买入: {summary.buy_count}, 卖出: {summary.sell_count})")
+        print(f"  净交易: {summary.net_shares:+,.0f} 股 (¥{summary.net_value:+,.0f})")
+        print(f"  参与高管: {summary.unique_insiders} 人")
+        print(f"  CEO/CFO交易: {summary.key_insider_trades} 笔")
+        
+        if summary.buy_value > 0 or summary.sell_value > 0:
+            print(f"  买入比例: {summary.buy_ratio:.0%}")
+    
+    recent_trades = insider_result.trades[:10]
+    if recent_trades:
+        print()
+        print("【近期交易】")
+        print("| 日期 | 高管 | 职位 | 类型 | 股数 | 金额 |")
+        print("|------|------|------|------|------|------|")
+        for trade in recent_trades:
+            date_str = trade.trade_date.strftime("%m-%d")
+            name = trade.insider_name[:6]
+            title = trade.title.value[:6]
+            ttype = "买入" if trade.is_buy else ("卖出" if trade.is_sell else "其他")
+            shares = f"{trade.shares:,.0f}"
+            value = f"¥{trade.value:,.0f}" if trade.value else "-"
+            print(f"| {date_str} | {name} | {title} | {ttype} | {shares} | {value} |")
+
+
 def get_type_label(company_type: str) -> str:
     labels = {
         "bank": "银行/金融",
@@ -414,6 +471,8 @@ def main():
   python stock_analyzer.py 600887 --news    # 包含新闻情感分析
   python stock_analyzer.py AAPL --news --llm  # 使用LLM API进行新闻分析
   python stock_analyzer.py 600887 --news --agent  # 使用 Coding Agent 深度分析
+  python stock_analyzer.py 600887 --insider  # 包含内部人交易分析
+  python stock_analyzer.py AAPL --insider --insider-days 180  # 180天内部人交易
         """
     )
     
@@ -428,6 +487,8 @@ def main():
     parser.add_argument("--llm", action="store_true", help="使用LLM API进行新闻分析 (需要OPENAI_API_KEY)")
     parser.add_argument("--agent", action="store_true", help="使用 Coding Agent 进行深度新闻分析 (无需API key)")
     parser.add_argument("--news-days", type=int, default=30, help="新闻分析天数 (默认30)")
+    parser.add_argument("--insider", "-i", action="store_true", help="包含内部人交易分析")
+    parser.add_argument("--insider-days", type=int, default=90, help="内部人交易分析天数 (默认90)")
     
     args = parser.parse_args()
     
@@ -446,6 +507,8 @@ def main():
         use_llm=args.llm,
         use_agent=args.agent,
         news_days=args.news_days,
+        include_insider=args.insider,
+        insider_days=args.insider_days,
     )
 
 
