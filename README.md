@@ -56,6 +56,10 @@ python stock_analyzer.py 600887 --news --news-days 60  # 60-day news
 # With insider trading analysis
 python stock_analyzer.py 600887 --insider       # Include insider trading
 python stock_analyzer.py AAPL --insider --insider-days 180  # 180-day insider trades
+
+# With buyback analysis (recommended for US stocks)
+python stock_analyzer.py AAPL --buyback         # Include buyback analysis
+python stock_analyzer.py 600887 --buyback       # A-share buyback analysis
 ```
 
 ### Python API
@@ -232,6 +236,50 @@ for trade in result.trades[:5]:
 | AKShare (同花顺) | A-shares | ✅ 高管增减持 | Free |
 | yfinance | US/Intl | ✅ Insider purchases | Free |
 
+## Buyback Analysis
+
+For US stocks, buyback yield is often more important than dividend yield (e.g., AAPL returns ~2.3% via buyback vs ~0.4% dividend).
+
+### Basic Usage
+
+```python
+from valueinvest.buyback import BuybackRegistry
+
+# Auto-detect market
+fetcher = BuybackRegistry.get_fetcher("AAPL")
+result = fetcher.fetch_buyback("AAPL", days=365)
+
+# Access summary
+summary = result.summary
+print(f"Buyback Yield: {summary.buyback_yield:.2f}%")
+print(f"Dividend Yield: {summary.dividend_yield:.2f}%")
+print(f"Total Shareholder Yield: {summary.total_shareholder_yield:.2f}%")
+print(f"Sentiment: {summary.sentiment.value}")  # aggressive/moderate/minimal/none
+
+# Yearly buyback amounts
+for year, amount in summary.yearly_amounts.items():
+    print(f"{year}: ${amount/1e9:.2f}B")
+
+# Access individual records
+for record in result.records[:5]:
+    print(f"{record.execution_date}: ${record.amount/1e9:.2f}B")
+```
+
+### Buyback Data Sources
+
+| Source | Markets | Data | Auth |
+|--------|---------|------|------|
+| AKShare (东方财富) | A-shares | ✅ 回购计划与执行 | Free |
+| yfinance | US/Intl | ✅ Cash flow buyback | Free |
+
+### CLI Usage
+
+```bash
+python stock_analyzer.py AAPL --buyback            # US stock buyback analysis
+python stock_analyzer.py 600887 --buyback          # A-share buyback analysis
+python stock_analyzer.py AAPL --buyback --buyback-days 730  # 2-year history
+```
+
 ### News Data Sources
 
 | Source | Markets | News | Guidance | Auth |
@@ -329,6 +377,17 @@ valueinvest/
 ├── insider/                 # Insider trading data
 │   ├── base.py              # InsiderTrade, InsiderSummary, InsiderFetchResult
 │   ├── registry.py          # Market detection & fetcher registry
+│   └── fetcher/
+│       ├── base.py          # BaseInsiderFetcher (ABC)
+│       ├── akshare_insider.py  # A-share (同花顺高管增减持)
+│       └── yfinance_insider.py # US stock insider transactions
+├── buyback/                 # Buyback/repurchase analysis
+│   ├── base.py              # BuybackRecord, BuybackSummary, BuybackFetchResult
+│   ├── registry.py          # Market detection & fetcher registry
+│   └── fetcher/
+│       ├── base.py          # BaseBuybackFetcher (ABC)
+│       ├── akshare_buyback.py  # A-share (东方财富回购数据)
+│       └── yfinance_buyback.py # US stock cash flow buyback
 │   └── fetcher/
 │       ├── base.py          # BaseInsiderFetcher (ABC)
 │       ├── akshare_insider.py  # A-share (同花顺高管增减持)
