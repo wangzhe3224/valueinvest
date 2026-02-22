@@ -257,3 +257,203 @@ class RuleOf40(BaseValuation):
             fair_value_range=None,
             applicability="Applicable" if stock.revenue > 0 else "Limited",
         )
+
+
+class EVEBITDA(BaseValuation):
+    """
+    EV/EBITDA Valuation - Enterprise Value to EBITDA Multiple.
+    
+    EV/EBITDA is useful for:
+    - Comparing companies with different capital structures
+    - Valuing companies with significant depreciation/amortization
+    - Cross-industry comparisons (more stable than P/E)
+    
+    Formula:
+    Fair EV = EBITDA × Fair EV/EBITDA Multiple
+    Fair Price = (Fair EV - Net Debt) / Shares Outstanding
+    """
+    
+    method_name = "EV/EBITDA"
+    
+    required_fields = [
+        FieldRequirement("ebitda", "EBITDA", is_critical=False),
+        FieldRequirement("ebit", "EBIT", is_critical=False),
+        FieldRequirement("depreciation", "Depreciation", is_critical=False),
+        FieldRequirement("revenue", "Revenue", is_critical=False),
+        FieldRequirement("operating_margin", "Operating Margin %", is_critical=False),
+        FieldRequirement("net_debt", "Net Debt", is_critical=False),
+        FieldRequirement("shares_outstanding", "Shares Outstanding", is_critical=True, min_value=0.01),
+        FieldRequirement("current_price", "Current Stock Price", is_critical=True, min_value=0.01),
+    ]
+    
+    best_for = [
+        "High-leverage companies",
+        "Capital-intensive industries (telecom, aviation, utilities)",
+        "Cross-company comparison",
+        "Companies with high depreciation",
+    ]
+    not_for = [
+        "Banks and financials (use P/B instead)",
+        "Negative EBITDA companies",
+        "Early-stage startups",
+    ]
+    
+    # Industry benchmarks for EV/EBITDA multiples
+    INDUSTRY_MULTIPLES = {
+        "default": 10.0,
+        "technology": 15.0,
+        "healthcare": 12.0,
+        "consumer": 11.0,
+        "industrial": 9.0,
+        "utilities": 8.0,
+        "telecom": 6.0,
+        "energy": 5.0,
+    }
+    
+    def __init__(
+        self,
+        fair_multiple: Optional[float] = None,
+        industry: Optional[str] = None,
+    ):
+        self.fair_multiple = fair_multiple
+        self.industry = industry
+    
+    def calculate(self, stock) -> ValuationResult:
+        is_valid, missing, warnings = self.validate_data(stock)
+        
+        # Calculate or estimate EBITDA
+        ebitda = stock.ebitda
+        if ebitda <= 0:
+            # Try to calculate from EBIT + Depreciation
+            ebit = stock.ebit
+            depreciation = stock.depreciation
+            
+            if ebit > 0 and depreciation > 0:
+                ebitda = ebit + depreciation
+                warnings.append(f"EBITDA calculated from EBIT ({ebit/1e9:.2f}B) + Depreciation ({depreciation/1e9:.2f}B)")
+            elif ebit > 0:
+                # Estimate depreciation as 20% of EBIT
+                ebitda = ebit * 1.2
+                warnings.append("EBITDA estimated (EBIT × 1.2)")
+            elif stock.operating_margin > 0 and stock.revenue > 0:
+                # Estimate from operating margin
+                ebit = stock.revenue * (stock.operating_margin / 100)
+                ebitda = ebit * 1.2
+                warnings.append("EBITDA estimated from operating margin")
+            elif stock.net_income > 0:
+                # Last resort: rough estimate
+                ebitda = stock.net_income * 1.5
+                warnings.append("EBITDA roughly estimated from net income")
+        
+        if ebitda <= 0:
+            return self._create_error_result(
+                stock,
+                "Cannot estimate positive EBITDA from available data",
+                ["ebitda", "ebit"]
+            )
+        
+        # Get enterprise value components
+        net_debt = stock.net_debt
+        shares = stock.shares_outstanding
+        ev = stock.enterprise_value
+        
+        # Current EV/EBITDA multiple
+        current_ev_ebitda = ev / ebitda if ebitda > 0 else 0
+        
+        # Determine fair multiple
+        if self.fair_multiple is not None:
+            fair_multiple = self.fair_multiple
+        elif self.industry and self.industry in self.INDUSTRY_MULTIPLES:
+            fair_multiple = self.INDUSTRY_MULTIPLES[self.industry]
+        else:
+            # Use default or infer from current multiple
+            fair_multiple = self.INDUSTRY_MULTIPLES["default"]
+            
+            # Adjust based on company characteristics
+            if stock.roe > 20:
+                fair_multiple *= 1.2  # Premium for high ROE
+            if stock.growth_rate > 15:
+                fair_multiple *= 1.1  # Premium for growth
+            if net_debt > ev * 0.5:
+                fair_multiple *= 0.85  # Discount for high leverage
+        
+        # Calculate fair enterprise value and equity value
+        fair_ev = ebitda * fair_multiple
+        fair_equity = fair_ev - net_debt
+        fair_price = fair_equity / shares if shares > 0 else 0
+        
+        if fair_price <= 0:
+            return self._create_error_result(
+                stock,
+                f"Fair equity value is negative (Fair EV: {fair_ev/1e9:.2f}B, Net Debt: {net_debt/1e9:.2f}B)",
+                []
+            )
+        
+        premium_discount = ((fair_price - stock.current_price) / stock.current_price) * 100
+        
+        # Sensitivity analysis (±20% multiple)
+        fair_price_low = (ebitda * (fair_multiple * 0.8) - net_debt) / shares
+        fair_price_high = (ebitda * (fair_multiple * 1.2) - net_debt) / shares
+        
+        # Calculate EV/EBITDA percentile vs typical ranges
+        multiple_assessment = ""
+        if current_ev_ebitda < 6:
+            multiple_assessment = "Very cheap (potentially distressed)"
+        elif current_ev_ebitda < 9:
+            multiple_assessment = "Attractive"
+        elif current_ev_ebitda < 12:
+            multiple_assessment = "Reasonable"
+        elif current_ev_ebitda < 15:
+            multiple_assessment = "Expensive"
+        else:
+            multiple_assessment = "Very expensive"
+        
+        analysis = [
+            f"Current EV/EBITDA: {current_ev_ebitda:.1f}x ({multiple_assessment})",
+            f"Fair EV/EBITDA Multiple: {fair_multiple:.1f}x",
+            f"EBITDA: {ebitda/1e9:.2f}B",
+            f"Enterprise Value: {ev/1e9:.2f}B (Market Cap: {stock.market_cap/1e9:.2f}B + Net Debt: {net_debt/1e9:.2f}B)",
+            f"Fair EV: {fair_ev/1e9:.2f}B → Fair Equity: {fair_equity/1e9:.2f}B",
+            f"Implied fair price: {fair_price:.2f} vs Current: {stock.current_price:.2f}",
+        ]
+        
+        # Compare to P/E for context
+        if stock.pe_ratio > 0:
+            analysis.append(f"Compare to P/E: {stock.pe_ratio:.1f}x")
+            if current_ev_ebitda < stock.pe_ratio * 0.7:
+                analysis.append("Note: EV/EBITDA significantly lower than P/E - check for high depreciation or debt")
+        
+        if warnings:
+            analysis.extend([f"Note: {w}" for w in warnings])
+        
+        confidence = "High" if stock.ebitda > 0 and len(warnings) == 0 else ("Medium" if len(warnings) <= 2 else "Low")
+        
+        return ValuationResult(
+            method=self.method_name,
+            fair_value=round(fair_price, 2),
+            current_price=stock.current_price,
+            premium_discount=round(premium_discount, 1),
+            assessment=self._assess(fair_price, stock.current_price),
+            details={
+                "current_ev_ebitda": round(current_ev_ebitda, 1),
+                "fair_ev_ebitda_multiple": fair_multiple,
+                "ebitda": ebitda,
+                "enterprise_value": ev,
+                "fair_enterprise_value": fair_ev,
+                "net_debt": net_debt,
+            },
+            components={
+                "ebitda": ebitda,
+                "fair_ev": fair_ev,
+                "fair_equity": fair_equity,
+            },
+            analysis=analysis,
+            confidence=confidence,
+            fair_value_range=ValuationRange(
+                low=round(max(0, fair_price_low), 2),
+                base=round(fair_price, 2),
+                high=round(fair_price_high, 2)
+            ),
+            applicability="Applicable" if ebitda > 0 else "Limited",
+        )
+

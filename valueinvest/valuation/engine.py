@@ -7,9 +7,10 @@ from .graham import GrahamNumber, GrahamFormula, NCAV
 from .dcf import DCF, ReverseDCF
 from .epv import EPV
 from .ddm import DDM, TwoStageDDM
-from .growth import PEG, GARP, RuleOf40
+from .growth import PEG, GARP, RuleOf40, EVEBITDA
 from .bank import PBValuation, ResidualIncome
 from .magic_formula import MagicFormula
+from .quality import OwnerEarnings, AltmanZScore
 
 
 class ValuationEngine:
@@ -25,24 +26,29 @@ class ValuationEngine:
         "peg",
         "garp",
         "magic_formula",
+        "owner_earnings",
+        "ev_ebitda",
+        "altman_z",
     ]
-    
+
     BANK_METHODS = [
         "graham_number",
         "pb",
         "residual_income",
         "ddm",
         "two_stage_ddm",
+        "altman_z",
     ]
-    
+
     DIVIDEND_METHODS = [
         "ddm",
         "two_stage_ddm",
         "graham_number",
         "graham_formula",
         "epv",
+        "owner_earnings",
     ]
-    
+
     GROWTH_METHODS = [
         "dcf",
         "reverse_dcf",
@@ -51,15 +57,18 @@ class ValuationEngine:
         "rule_of_40",
         "graham_formula",
         "magic_formula",
+        "ev_ebitda",
     ]
-    
+
     VALUE_METHODS = [
         "graham_number",
         "ncav",
         "epv",
         "graham_formula",
+        "owner_earnings",
+        "altman_z",
     ]
-    
+
     def __init__(self):
         self._methods = {
             "graham_number": GrahamNumber(),
@@ -76,19 +85,22 @@ class ValuationEngine:
             "pb": PBValuation(),
             "residual_income": ResidualIncome(),
             "magic_formula": MagicFormula(),
+            "owner_earnings": OwnerEarnings(),
+            "ev_ebitda": EVEBITDA(),
+            "altman_z": AltmanZScore(),
         }
-    
+
     def run_single(self, stock, method: str, **kwargs) -> ValuationResult:
         if method not in self._methods:
             raise ValueError(f"Unknown method: {method}. Available: {list(self._methods.keys())}")
-        
+
         valuator = self._methods[method]
-        
+
         if kwargs:
             valuator = self._create_custom_valuator(method, kwargs)
-        
+
         return valuator.calculate(stock)
-    
+
     def _create_custom_valuator(self, method: str, kwargs: Dict[str, Any]):
         if method == "dcf":
             return DCF(
@@ -130,92 +142,120 @@ class ValuationEngine:
             )
         elif method == "peg":
             return PEG(fair_peg=kwargs.get("fair_peg", 1.0))
+        elif method == "owner_earnings":
+            return OwnerEarnings(
+                maintenance_capex_pct=kwargs.get("maintenance_capex_pct"),
+                cost_of_capital=kwargs.get("cost_of_capital"),
+            )
+        elif method == "ev_ebitda":
+            return EVEBITDA(
+                fair_multiple=kwargs.get("fair_multiple"),
+                industry=kwargs.get("industry"),
+            )
+        elif method == "altman_z":
+            return AltmanZScore(
+                zone_safe=kwargs.get("zone_safe", 2.99),
+                zone_distress=kwargs.get("zone_distress", 1.81),
+            )
         return self._methods[method]
-    
-    def run_multiple(self, stock, methods: Optional[List[str]] = None, **kwargs) -> List[ValuationResult]:
+
+    def run_multiple(
+        self, stock, methods: Optional[List[str]] = None, **kwargs
+    ) -> List[ValuationResult]:
         if methods is None:
             methods = self.DEFAULT_METHODS
-        
+
         results = []
         for method in methods:
             try:
                 result = self.run_single(stock, method, **kwargs)
                 results.append(result)
             except Exception as e:
-                results.append(ValuationResult(
-                    method=method,
-                    fair_value=0,
-                    current_price=stock.current_price,
-                    premium_discount=0,
-                    assessment=f"Error: {str(e)}",
-                    missing_fields=[],
-                ))
-        
+                results.append(
+                    ValuationResult(
+                        method=method,
+                        fair_value=0,
+                        current_price=stock.current_price,
+                        premium_discount=0,
+                        assessment=f"Error: {str(e)}",
+                        missing_fields=[],
+                    )
+                )
+
         return results
-    
+
     def run_bank(self, stock, **kwargs) -> List[ValuationResult]:
         return self.run_multiple(stock, self.BANK_METHODS, **kwargs)
-    
+
     def run_dividend(self, stock, **kwargs) -> List[ValuationResult]:
         return self.run_multiple(stock, self.DIVIDEND_METHODS, **kwargs)
-    
+
     def run_growth(self, stock, **kwargs) -> List[ValuationResult]:
         return self.run_multiple(stock, self.GROWTH_METHODS, **kwargs)
-    
+
     def run_value(self, stock, **kwargs) -> List[ValuationResult]:
         return self.run_multiple(stock, self.VALUE_METHODS, **kwargs)
-    
+
     def run_all(self, stock, **kwargs) -> List[ValuationResult]:
         return self.run_multiple(stock, list(self._methods.keys()), **kwargs)
-    
+
     def get_recommended_methods(self, stock) -> Dict[str, List[str]]:
         recommendations = {
             "primary": [],
             "secondary": [],
             "not_recommended": [],
         }
-        
+
         has_dividend = stock.dividend_per_share > 0 and stock.dividend_yield > 1.5
         has_fcf = stock.fcf > 0
         has_positive_earnings = stock.eps > 0
         is_growth = stock.growth_rate > 10 if stock.growth_rate else False
-        is_bank = hasattr(stock, 'sectors') and any(
-            s in ['银行', 'Bank', 'Financial', 'Insurance'] 
-            for s in (stock.sectors or [])
+        is_bank = hasattr(stock, "sectors") and any(
+            s in ["银行", "Bank", "Financial", "Insurance"] for s in (stock.sectors or [])
         )
         is_value = stock.pe_ratio < 15 if stock.pe_ratio else False
-        
+
         if is_bank:
-            recommendations["primary"] = ["pb", "residual_income", "ddm"]
+            recommendations["primary"] = ["pb", "residual_income", "ddm", "altman_z"]
             recommendations["secondary"] = ["graham_number", "two_stage_ddm"]
-            recommendations["not_recommended"] = ["dcf", "reverse_dcf", "magic_formula", "rule_of_40"]
+            recommendations["not_recommended"] = [
+                "dcf",
+                "reverse_dcf",
+                "magic_formula",
+                "rule_of_40",
+            ]
         elif has_dividend and not is_growth:
-            recommendations["primary"] = ["ddm", "two_stage_ddm", "graham_number"]
+            recommendations["primary"] = ["ddm", "two_stage_ddm", "graham_number", "owner_earnings"]
             recommendations["secondary"] = ["epv", "graham_formula"]
             recommendations["not_recommended"] = ["rule_of_40"]
         elif is_growth and has_fcf:
-            recommendations["primary"] = ["dcf", "reverse_dcf", "peg", "garp"]
+            recommendations["primary"] = ["dcf", "reverse_dcf", "peg", "garp", "ev_ebitda"]
             recommendations["secondary"] = ["graham_formula", "magic_formula"]
             recommendations["not_recommended"] = ["ncav", "ddm"]
         elif is_value and has_positive_earnings:
-            recommendations["primary"] = ["graham_number", "graham_formula", "epv"]
-            recommendations["secondary"] = ["ncav", "magic_formula"]
+            recommendations["primary"] = [
+                "graham_number",
+                "graham_formula",
+                "epv",
+                "owner_earnings",
+            ]
+            recommendations["secondary"] = ["ncav", "magic_formula", "altman_z"]
             recommendations["not_recommended"] = ["rule_of_40", "peg"]
         else:
             recommendations["primary"] = ["graham_formula", "epv"]
             recommendations["secondary"] = ["dcf"] if has_fcf else ["graham_number"]
             recommendations["not_recommended"] = []
-        
+
         return recommendations
-    
+
     def run_recommended(self, stock, **kwargs) -> List[ValuationResult]:
         recommendations = self.get_recommended_methods(stock)
         methods = recommendations["primary"] + recommendations["secondary"]
         return self.run_multiple(stock, methods, **kwargs)
-    
+
     def summary(self, results: List[ValuationResult]) -> Dict[str, Any]:
         valid_results = [r for r in results if r.fair_value > 0 and r.is_reliable]
-        
+
         if not valid_results:
             return {
                 "average_value": 0,
@@ -228,20 +268,24 @@ class ValuationEngine:
                 "reliable_count": 0,
                 "total_methods": len(results),
             }
-        
+
         values = [r.fair_value for r in valid_results]
         current_price = results[0].current_price if results else 0
-        
+
         undervalued = sum(1 for r in valid_results if r.premium_discount > 15)
         overvalued = sum(1 for r in valid_results if r.premium_discount < -15)
         fair = len(valid_results) - undervalued - overvalued
-        
+
         sorted_values = sorted(values)
         mid = len(sorted_values) // 2
-        median = sorted_values[mid] if len(sorted_values) % 2 == 1 else (sorted_values[mid-1] + sorted_values[mid]) / 2
-        
+        median = (
+            sorted_values[mid]
+            if len(sorted_values) % 2 == 1
+            else (sorted_values[mid - 1] + sorted_values[mid]) / 2
+        )
+
         avg_premium = sum(r.premium_discount for r in valid_results) / len(valid_results)
-        
+
         return {
             "average_value": sum(values) / len(values),
             "median_value": median,
@@ -255,13 +299,13 @@ class ValuationEngine:
             "current_price": current_price,
             "average_premium_discount": avg_premium,
         }
-    
+
     def get_available_methods(self) -> List[str]:
         return list(self._methods.keys())
-    
+
     def get_method_info(self, method: str) -> Dict[str, Any]:
         if method not in self._methods:
             raise ValueError(f"Unknown method: {method}")
-        
+
         valuator = self._methods[method]
         return valuator.get_applicability_info()

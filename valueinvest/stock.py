@@ -102,6 +102,8 @@ class Stock:
     net_working_capital: float = 0.0
     net_fixed_assets: float = 0.0
     ebit: float = 0.0
+    ebitda: float = 0.0
+    retained_earnings: float = 0.0
     
     operating_margin: float = 0.0
     tax_rate: float = 0.0
@@ -230,6 +232,8 @@ class Stock:
             net_working_capital=data.get("net_working_capital", 0.0),
             net_fixed_assets=data.get("net_fixed_assets", 0.0),
             ebit=data.get("ebit", 0.0),
+            ebitda=data.get("ebitda", 0.0),
+            retained_earnings=data.get("retained_earnings", 0.0),
             operating_margin=data.get("operating_margin", 0.0),
             tax_rate=data.get("tax_rate", 0.0),
             roe=data.get("roe", 0.0),
