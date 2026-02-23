@@ -63,3 +63,6 @@ Thumbs.db
 # Project-specific
 .sisyphus/
 .claude/
+
+# Reports (generated)
+reports/
