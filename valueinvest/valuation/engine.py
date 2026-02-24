@@ -11,6 +11,7 @@ from .growth import PEG, GARP, RuleOf40, EVEBITDA
 from .bank import PBValuation, ResidualIncome
 from .magic_formula import MagicFormula
 from .quality import OwnerEarnings, AltmanZScore
+from .value_trap import ValueTrapDetector, detect_value_trap
 
 
 class ValuationEngine:
@@ -29,6 +30,7 @@ class ValuationEngine:
         "owner_earnings",
         "ev_ebitda",
         "altman_z",
+        "value_trap",
     ]
 
     BANK_METHODS = [
@@ -67,6 +69,7 @@ class ValuationEngine:
         "graham_formula",
         "owner_earnings",
         "altman_z",
+        "value_trap",
     ]
 
     def __init__(self):
@@ -88,6 +91,7 @@ class ValuationEngine:
             "owner_earnings": OwnerEarnings(),
             "ev_ebitda": EVEBITDA(),
             "altman_z": AltmanZScore(),
+            "value_trap": ValueTrapDetector(),
         }
 
     def run_single(self, stock, method: str, **kwargs) -> ValuationResult:
@@ -156,6 +160,17 @@ class ValuationEngine:
             return AltmanZScore(
                 zone_safe=kwargs.get("zone_safe", 2.99),
                 zone_distress=kwargs.get("zone_distress", 1.81),
+            )
+        elif method == "value_trap":
+            return ValueTrapDetector(
+                revenue_cagr_3y=kwargs.get("revenue_cagr_3y"),
+                revenue_cagr_5y=kwargs.get("revenue_cagr_5y"),
+                margin_trend=kwargs.get("margin_trend"),
+                roe_trend=kwargs.get("roe_trend"),
+                market_share_trend=kwargs.get("market_share_trend"),
+                industry=kwargs.get("industry"),
+                sector=kwargs.get("sector"),
+                ai_vulnerability_override=kwargs.get("ai_vulnerability_override"),
             )
         return self._methods[method]
 

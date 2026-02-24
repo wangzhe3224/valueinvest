@@ -9,6 +9,14 @@ from .ddm import DDM, TwoStageDDM
 from .growth import PEG, GARP, RuleOf40, EVEBITDA
 from .bank import PBValuation, ResidualIncome, analyze_bank_health
 from .quality import OwnerEarnings, AltmanZScore
+from .value_trap import (
+    ValueTrapDetector,
+    ValueTrapResult,
+    TrapRiskLevel,
+    TrapCategory,
+    TrapIndicator,
+    detect_value_trap,
+)
 from .engine import ValuationEngine
 
 __all__ = [
@@ -31,5 +39,11 @@ __all__ = [
     "analyze_bank_health",
     "OwnerEarnings",
     "AltmanZScore",
+    "ValueTrapDetector",
+    "ValueTrapResult",
+    "TrapRiskLevel",
+    "TrapCategory",
+    "TrapIndicator",
+    "detect_value_trap",
     "ValuationEngine",
 ]

@@ -20,6 +20,8 @@ valueinvest/
 │   ├── base.py                 # BaseValuation (ABC), ValuationResult
 │   ├── engine.py               # ValuationEngine
 │   ├── graham.py, dcf.py, epv.py, ddm.py, growth.py, bank.py, magic_formula.py
+│   ├── quality.py              # OwnerEarnings, AltmanZScore
+│   ├── value_trap.py           # ValueTrapDetector, detect_value_trap()
 ├── news/
 │   ├── base.py, registry.py    # NewsItem, Guidance, NewsAnalysisResult
 │   ├── fetcher/                # akshare_news.py, yfinance_news.py
@@ -50,6 +52,21 @@ results = engine.run_all(stock)
 results = engine.run_dividend(stock)  # 分红股
 results = engine.run_bank(stock)      # 银行
 results = engine.run_growth(stock)    # 成长股
+
+# 价值陷阱检测
+from valueinvest.valuation import ValueTrapDetector, detect_value_trap
+detector = ValueTrapDetector(
+    revenue_cagr_5y=-3.0,  # 5年收入CAGR
+    margin_trend="compressing",  # 毛利率趋势
+    industry="education",  # 行业 (AI风险评估)
+)
+trap_result = detector.detect(stock)
+# trap_result.is_trap: True/False
+# trap_result.trap_score: 0-100
+# trap_result.overall_risk: LOW/MODERATE/HIGH/CRITICAL
+
+# 快捷函数
+result = detect_value_trap(stock, revenue_cagr_5y=5.0, industry="utilities")
 
 # 新闻情感分析
 fetcher = NewsRegistry.get_fetcher("600887")
@@ -99,6 +116,33 @@ python stock_analyzer.py 600887 --insider          # 内幕交易
 - 股息率 > 3% → Dividend
 - HFQ CAGR > 10% → Growth
 - HFQ CAGR < 5% → Value
+
+## Value Trap Detection
+
+价值陷阱检测维度：
+- **Financial Health**: Altman Z-Score 破产预警
+- **Business Deterioration**: 收入/毛利/ROE趋势
+- **Moat Erosion**: 护城河侵蚀
+- **AI Vulnerability**: AI颠覆风险 (教育/SaaS高危)
+- **Dividend Signal**: 分红可持续性
+
+```python
+# 使用示例
+detector = ValueTrapDetector(
+    revenue_cagr_5y=-5.0,      # 收入下滑
+    margin_trend="compressing", # 毛利压缩
+    roe_trend="declining",      # ROE下降
+    industry="education",       # AI高危行业
+)
+result = detector.detect(stock)
+
+if result.is_trap:
+    print(f"警告: {stock.ticker} 可能是价值陷阱!")
+    for issue in result.critical_issues:
+        print(f"  - {issue}")
+```
+
+AI高危行业列表 (见 `AI_VULNERABLE_INDUSTRIES`): education, edtech, saas, customer_service 等
 
 ## Conventions
 
