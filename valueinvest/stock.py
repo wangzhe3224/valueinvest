@@ -97,6 +97,10 @@ class Stock:
     total_assets: float = 0.0
     net_debt: float = 0.0
     
+    # SBC (Stock-Based Compensation) related fields
+    sbc: float = 0.0                    # Stock-Based Compensation (annual)
+    shares_issued: float = 0.0          # Shares issued from SBC/options (annual)
+    shares_repurchased: float = 0.0     # Shares repurchased (annual)
     depreciation: float = 0.0
     capex: float = 0.0
     net_working_capital: float = 0.0
@@ -156,6 +160,50 @@ class Stock:
     @property
     def fcf_per_share(self) -> float:
         return self.fcf / self.shares_outstanding if self.shares_outstanding > 0 else 0
+    
+    # === SBC Related Properties ===
+    
+    @property
+    def sbc_margin(self) -> float:
+        """SBC as percentage of revenue"""
+        return (self.sbc / self.revenue * 100) if self.revenue > 0 else 0
+    
+    @property
+    def sbc_as_pct_of_fcf(self) -> float:
+        """SBC as percentage of FCF"""
+        return (self.sbc / self.fcf * 100) if self.fcf > 0 else 0
+    
+    @property
+    def true_fcf(self) -> float:
+        """SBC-adjusted true FCF"""
+        return self.fcf - self.sbc
+    
+    @property
+    def true_fcf_per_share(self) -> float:
+        """SBC-adjusted FCF per share"""
+        return self.true_fcf / self.shares_outstanding if self.shares_outstanding > 0 else 0
+    
+    @property
+    def dilution_rate(self) -> float:
+        """Annual dilution rate from share issuance"""
+        return (self.shares_issued / self.shares_outstanding * 100) if self.shares_outstanding > 0 else 0
+    
+    @property
+    def buyback_yield(self) -> float:
+        """Gross buyback yield"""
+        return (self.shares_repurchased * self.current_price / self.market_cap * 100) if self.market_cap > 0 and self.shares_repurchased > 0 else 0
+    
+    @property
+    def true_buyback_yield(self) -> float:
+        """True buyback yield (net of dilution)"""
+        if self.shares_outstanding <= 0 or self.market_cap <= 0:
+            return 0
+        net_reduction = self.shares_repurchased - self.shares_issued
+        return (net_reduction * self.current_price / self.market_cap * 100)
+    
+    def shareholder_yield(self) -> float:
+        """Total shareholder yield (dividend + true buyback yield)"""
+        return self.dividend_yield + self.true_buyback_yield
     
     @classmethod
     def from_api(
@@ -227,6 +275,9 @@ class Stock:
             total_liabilities=data.get("total_liabilities", 0.0),
             total_assets=data.get("total_assets", 0.0),
             net_debt=data.get("net_debt", 0.0),
+            sbc=data.get("sbc", 0.0),
+            shares_issued=data.get("shares_issued", 0.0),
+            shares_repurchased=data.get("shares_repurchased", 0.0),
             depreciation=data.get("depreciation", 0.0),
             capex=data.get("capex", 0.0),
             net_working_capital=data.get("net_working_capital", 0.0),

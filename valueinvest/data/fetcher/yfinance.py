@@ -153,6 +153,14 @@ class YFinanceFetcher(BaseFetcher):
                         data["depreciation"] = float(
                             cashflow.loc["Depreciation And Amortization"].iloc[0]
                         )
+                    # SBC data
+                    if "Stock Based Compensation" in cashflow.index:
+                        data["sbc"] = float(cashflow.loc["Stock Based Compensation"].iloc[0])
+                    # Share issuance/repurchase (financing activities)
+                    if "Issuance Of Stock" in cashflow.index:
+                        data["shares_issued"] = abs(float(cashflow.loc["Issuance Of Stock"].iloc[0]))
+                    if "Repurchase Of Stock" in cashflow.index:
+                        data["shares_repurchased"] = abs(float(cashflow.loc["Repurchase Of Stock"].iloc[0]))
             except (KeyError, IndexError, TypeError):
                 pass
 

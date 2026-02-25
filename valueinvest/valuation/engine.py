@@ -12,6 +12,7 @@ from .bank import PBValuation, ResidualIncome
 from .magic_formula import MagicFormula
 from .quality import OwnerEarnings, AltmanZScore
 from .value_trap import ValueTrapDetector, detect_value_trap
+from .sbc import SBCAnalysis
 
 
 class ValuationEngine:
@@ -31,6 +32,7 @@ class ValuationEngine:
         "ev_ebitda",
         "altman_z",
         "value_trap",
+        "sbc_analysis",
     ]
 
     BANK_METHODS = [
@@ -92,6 +94,7 @@ class ValuationEngine:
             "ev_ebitda": EVEBITDA(),
             "altman_z": AltmanZScore(),
             "value_trap": ValueTrapDetector(),
+            "sbc_analysis": SBCAnalysis(),
         }
 
     def run_single(self, stock, method: str, **kwargs) -> ValuationResult:
