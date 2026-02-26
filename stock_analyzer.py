@@ -30,6 +30,8 @@ def analyze_stock(
     insider_days: int = 90,
     include_buyback: bool = False,
     buyback_days: int = 365,
+    include_fcf: bool = False,
+    fcf_years: int = 5,
 ):
     print(f"\n正在获取 {ticker} 基本面数据...")
 
@@ -83,8 +85,16 @@ def analyze_stock(
         except Exception as e:
             print(f"警告: 无法获取回购数据 - {e}")
 
+    fcf_result = None
+    if include_fcf:
+        print(f"正在获取 {ticker} 自由现金流数据...")
+        try:
+            fcf_result = fetch_fcf(ticker, years=fcf_years)
+        except Exception as e:
+            print(f"警告: 无法获取自由现金流数据 - {e}")
+
     print_report(
-        stock, history, company_type, history_period, news_analysis, insider_result, buyback_result
+        stock, history, company_type, history_period, news_analysis, insider_result, buyback_result, fcf_result
     )
 
 
@@ -154,6 +164,13 @@ def fetch_buyback(ticker: str, days: int = 365):
     result = fetcher.fetch_buyback(ticker, days=days)
     return result
 
+
+def fetch_fcf(ticker: str, years: int = 5):
+    from valueinvest.cashflow.registry import CashFlowRegistry
+
+    fetcher = CashFlowRegistry.get_fetcher(ticker)
+    result = fetcher.fetch_cashflow(ticker, years=years)
+    return result
 
 def fetch_and_analyze_news(
     ticker: str,
@@ -249,6 +266,7 @@ def print_report(
     news_analysis=None,
     insider_result=None,
     buyback_result=None,
+    fcf_result=None,
 ):
     engine = ValuationEngine()
 
@@ -340,6 +358,8 @@ def print_report(
     if buyback_result and buyback_result.summary and buyback_result.summary.has_buyback:
         print_shareholder_yield(stock, buyback_result.summary)
 
+    if fcf_result and fcf_result.summary and fcf_result.summary.has_fcf_data:
+        print_fcf_analysis(fcf_result, buyback_result.summary if buyback_result else None)
     print("\n" + "=" * 70)
     print("【估值汇总】")
     print("=" * 70)
@@ -590,6 +610,114 @@ def print_shareholder_yield(stock, buyback_summary):
         print("  💡 激进回购 (>3%)，公司对自身价值有信心")
 
 
+def print_fcf_analysis(fcf_result, buyback_summary=None):
+    """Print Free Cash Flow analysis section."""
+    print("\n" + "=" * 70)
+    print("【自由现金流 (FCF) 分析】")
+    print("=" * 70)
+    print()
+
+    summary = fcf_result.summary
+    market = fcf_result.market
+    currency = "$" if market == Market.US else "¥"
+    unit = 1e9 if market == Market.US else 1e8
+    unit_label = "B" if market == Market.US else "亿"
+
+    # Quality indicator
+    quality_emoji = {
+        "excellent": "🟢",
+        "good": "🟢",
+        "acceptable": "🟡",
+        "poor": "🟠",
+        "negative": "🔴",
+    }
+    quality = summary.fcf_quality.value
+    emoji = quality_emoji.get(quality, "➡️")
+
+    print(f"  FCF 质量: {emoji} {quality.upper()}")
+    print(f"  FCF 趋势: {summary.fcf_trend.value.upper()}")
+    print()
+
+    # Key metrics
+    print("【核心指标】")
+    print(f"  最新年度 FCF: {currency}{summary.latest_fcf/unit:.2f}{unit_label}")
+    print(f"  FCF 收益率: {summary.fcf_yield:.2f}%")
+    print(f"  FCF 利润率: {summary.fcf_margin:.2f}%")
+    print(f"  每股 FCF: {currency}{summary.fcf_per_share:.2f}")
+    print()
+
+    # SBC adjustment
+    if summary.sbc_as_pct_of_fcf > 0:
+        print("【SBC (股权激励) 调整】")
+        latest_sbc_year = max(summary.yearly_sbc.keys()) if summary.yearly_sbc else 0
+        sbc_amount = summary.yearly_sbc.get(latest_sbc_year, 0) if latest_sbc_year else 0
+        print(f"  SBC 金额: {currency}{sbc_amount/unit:.2f}{unit_label}")
+        print(f"  SBC 占 FCF: {summary.sbc_as_pct_of_fcf:.1f}%")
+        print(f"  真实 FCF (扣除SBC): {currency}{summary.latest_true_fcf/unit:.2f}{unit_label}")
+        print(f"  真实 FCF 收益率: {summary.true_fcf_yield:.2f}%")
+        print(f"  真实 FCF 利润率: {summary.true_fcf_margin:.2f}%")
+        print()
+
+    # Quality metrics
+    print("【盈利质量】")
+    print(f"  FCF / 净利润: {summary.fcf_to_net_income:.2f}x")
+    if summary.fcf_to_net_income >= 1.0:
+        print("    💡 FCF > 净利润，盈利质量优秀")
+    elif summary.fcf_to_net_income >= 0.8:
+        print("    💡 FCF 接近净利润，盈利质量良好")
+    elif summary.fcf_to_net_income >= 0.5:
+        print("    ⚠️ FCF 显著低于净利润，需关注")
+    else:
+        print("    🚨 FCF 远低于净利润，盈利质量堪忧")
+    print()
+
+    # Historical trend
+    if len(summary.yearly_fcf) > 1:
+        print("【历史趋势】")
+        print(f"  FCF CAGR ({len(summary.yearly_fcf)}年): {summary.fcf_cagr:+.1f}%")
+        print(f"  收入 CAGR ({len(summary.yearly_revenue)}年): {summary.revenue_cagr:+.1f}%")
+        print(f"  FCF 为正年数: {summary.positive_fcf_years}/{summary.record_count}")
+        print()
+
+        # Yearly data table
+        print("【年度 FCF 数据】")
+        print("| 年份 | FCF | 真实FCF | 收入 | SBC | FCF利润率 |")
+        print("|------|-----|---------|------|-----|----------|")
+        for year in sorted(summary.yearly_fcf.keys(), reverse=True)[:5]:
+            fcf = summary.yearly_fcf.get(year, 0)
+            true_fcf = summary.yearly_true_fcf.get(year, 0)
+            revenue = summary.yearly_revenue.get(year, 0)
+            sbc = summary.yearly_sbc.get(year, 0)
+            margin = (fcf / revenue * 100) if revenue > 0 else 0
+            print(f"| {year} | {currency}{fcf/unit:.1f}{unit_label} | {currency}{true_fcf/unit:.1f}{unit_label} | {currency}{revenue/unit:.1f}{unit_label} | {currency}{sbc/unit:.1f}{unit_label} | {margin:.1f}% |")
+        print()
+
+    # Comparison with shareholder yield
+    if buyback_summary and buyback_summary.has_buyback:
+        print("【与股东回报对比】")
+        print(f"  FCF 收益率: {summary.fcf_yield:.2f}%")
+        print(f"  总股东收益率: {buyback_summary.total_shareholder_yield:.2f}%")
+        if summary.fcf_yield > buyback_summary.total_shareholder_yield:
+            print("    💡 FCF 收益率 > 股东收益率，公司有充足现金支持回购/分红")
+        elif summary.fcf_yield > 0:
+            print("    ⚠️ FCF 收益率 < 股东收益率，回购/分红可能依赖借贷或储备")
+        print()
+
+    # Investment implications
+    print("【投资启示】")
+    if summary.fcf_quality.value in ("excellent", "good"):
+        if summary.fcf_trend.value == "improving":
+            print("  ✅ 高质量FCF + 改善趋势，现金牛特征明显")
+        else:
+            print("  ✅ 高质量FCF，现金创造能力强")
+    elif summary.fcf_quality.value == "acceptable":
+        print("  🟡 FCF质量尚可，需持续监控")
+    else:
+        print("  ⚠️ FCF质量堪忧，投资需谨慎")
+
+    if summary.sbc_is_material:
+        print(f"  ⚠️ SBC 占 FCF {summary.sbc_as_pct_of_fcf:.0f}%，股权稀释显著")
+
 def get_type_label(company_type: str) -> str:
     labels = {
         "bank": "银行/金融",
@@ -618,6 +746,8 @@ def main():
   python stock_analyzer.py AAPL --insider --insider-days 180  # 180天内部人交易
   python stock_analyzer.py AAPL --buyback   # 包含回购分析 (美股推荐)
   python stock_analyzer.py 600887 --buyback # 包含回购分析 (A股)
+  python stock_analyzer.py AAPL --fcf       # 包含自由现金流分析
+  python stock_analyzer.py PYPL --buyback --fcf  # 回购+FCF综合分析
         """,
     )
 
@@ -645,6 +775,8 @@ def main():
     parser.add_argument("--insider-days", type=int, default=90, help="内部人交易分析天数 (默认90)")
     parser.add_argument("--buyback", action="store_true", help="包含回购分析 (美股推荐)")
     parser.add_argument("--buyback-days", type=int, default=365, help="回购分析天数 (默认365)")
+    parser.add_argument("--fcf", action="store_true", help="包含自由现金流分析 (推荐与回购分析一起使用)")
+    parser.add_argument("--fcf-years", type=int, default=5, help="FCF分析年数 (默认5)")
 
     args = parser.parse_args()
 
@@ -667,6 +799,8 @@ def main():
         insider_days=args.insider_days,
         include_buyback=args.buyback,
         buyback_days=args.buyback_days,
+        include_fcf=args.fcf,
+        fcf_years=args.fcf_years,
     )
 
 

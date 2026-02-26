@@ -14,8 +14,9 @@ A modular Python library for comprehensive stock valuation using multiple method
 - **News & Sentiment Analysis**: Keyword-based and LLM-based sentiment analysis
 - **Analyst Data**: Company guidance and analyst expectations
 - **Insider Trading**: Track executive buy/sell activity (A-share & US)
+- **Buyback Analysis**: Share repurchase tracking and shareholder yield
+- **Free Cash Flow Analysis**: FCF quality, SBC impact, and profitability metrics
 - **QFQ/HFQ Price Adjustment**: Proper price adjustment for valuation comparison and real returns
-
 ## Installation
 
 ```bash
@@ -60,7 +61,11 @@ python stock_analyzer.py AAPL --insider --insider-days 180  # 180-day insider tr
 # With buyback analysis (recommended for US stocks)
 python stock_analyzer.py AAPL --buyback         # Include buyback analysis
 python stock_analyzer.py 600887 --buyback       # A-share buyback analysis
-```
+
+# With FCF (Free Cash Flow) analysis
+python stock_analyzer.py AAPL --fcf             # Include FCF analysis
+python stock_analyzer.py AAPL --fcf --fcf-years 7  # 7-year FCF history
+python stock_analyzer.py AAPL --buyback --fcf   # Full shareholder return analysis
 
 ### Python API
 
@@ -280,6 +285,60 @@ python stock_analyzer.py 600887 --buyback          # A-share buyback analysis
 python stock_analyzer.py AAPL --buyback --buyback-days 730  # 2-year history
 ```
 
+## Free Cash Flow (FCF) Analysis
+
+FCF analysis helps evaluate the quality of a company's cash generation, including SBC (Stock-Based Compensation) impact on true profitability.
+
+### Basic Usage
+
+```python
+from valueinvest.cashflow import CashFlowRegistry
+
+# Auto-detect market
+fetcher = CashFlowRegistry.get_fetcher("AAPL")
+result = fetcher.fetch_cashflow("AAPL", years=5)
+
+# Access summary
+summary = result.summary
+print(f"FCF Quality: {summary.fcf_quality.value}")  # EXCELLENT/GOOD/ACCEPTABLE/POOR/NEGATIVE
+print(f"FCF Trend: {summary.fcf_trend.value}")    # IMPROVING/STABLE/DECLINING/VOLATILE
+print(f"FCF Yield: {summary.fcf_yield:.2f}%")
+print(f"FCF Margin: {summary.fcf_margin:.2f}%")
+
+# SBC-adjusted (True FCF)
+print(f"True FCF (SBC-adjusted): ${summary.latest_true_fcf/1e9:.2f}B")
+print(f"True FCF Yield: {summary.true_fcf_yield:.2f}%")
+print(f"SBC as % of FCF: {summary.sbc_as_pct_of_fcf:.1f}%")
+
+# Profitability quality
+print(f"FCF / Net Income: {summary.fcf_to_net_income:.2f}x")
+print(f"FCF CAGR: {summary.fcf_cagr:.1f}%")
+```
+
+### Key Metrics
+
+| Metric | Description |
+| :--- | :--- |
+| FCF Quality | EXCELLENT (>15% yield), GOOD (10-15%), ACCEPTABLE (5-10%), POOR (0-5%), NEGATIVE (<0) |
+| FCF Trend | IMPROVING, STABLE, DECLINING, VOLATILE |
+| FCF Yield | FCF / Market Cap |
+| FCF Margin | FCF / Revenue |
+| True FCF | FCF - SBC (stock-based compensation) |
+| FCF / Net Income | Cash quality of earnings (>1.0 is excellent) |
+
+### FCF Data Sources
+
+| Source | Markets | Data | Auth |
+| :--- | :--- | :--- | :--- |
+| yfinance | US/Intl | ✅ Cash flow statement | Free |
+
+### CLI Usage
+
+```bash
+python stock_analyzer.py AAPL --fcf                  # FCF analysis (default 5 years)
+python stock_analyzer.py AAPL --fcf --fcf-years 7   # 7-year FCF history
+python stock_analyzer.py AAPL --buyback --fcf       # Combined shareholder return analysis
+```
 ### News Data Sources
 
 | Source | Markets | News | Guidance | Auth |
@@ -388,10 +447,12 @@ valueinvest/
 │       ├── base.py          # BaseBuybackFetcher (ABC)
 │       ├── akshare_buyback.py  # A-share (东方财富回购数据)
 │       └── yfinance_buyback.py # US stock cash flow buyback
+├── cashflow/                # Free Cash Flow analysis
+│   ├── base.py              # CashFlowRecord, CashFlowSummary, CashFlowFetchResult
+│   ├── registry.py          # Market detection & fetcher registry
 │   └── fetcher/
-│       ├── base.py          # BaseInsiderFetcher (ABC)
-│       ├── akshare_insider.py  # A-share (同花顺高管增减持)
-│       └── yfinance_insider.py # US stock insider transactions
+│       ├── base.py          # BaseCashFlowFetcher (ABC)
+│       └── yfinance_cashflow.py # US stock cash flow data
 ├── data/
 │   ├── presets.py           # Pre-configured stocks
 │   └── fetcher/             # Data fetching
@@ -404,7 +465,6 @@ valueinvest/
     └── enhanced_reporter.py # Enhanced report with news
 
 stock_analyzer.py            # CLI entry point
-```
 
 ## Example Output
 
