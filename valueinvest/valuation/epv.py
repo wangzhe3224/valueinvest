@@ -60,13 +60,15 @@ class EPV(BaseValuation):
         
         ebit = revenue * operating_margin
         nopat = ebit * (1 - tax_rate)
-        gross_cash_flow = nopat + depreciation
         
         maintenance_capex = abs(capex) * maintenance_pct if capex != 0 else 0
         
-        working_capital_charge = abs(net_working_capital) * cost_of_capital if net_working_capital != 0 else 0
+        # Greenwald's EPV: Use excess depreciation (tax-affected at 50% of tax rate)
+        # NOT full depreciation add-back, and NO working capital charge (constant size assumption)
+        excess_depreciation = depreciation * (0.5 * tax_rate)
         
-        distributable_cash_flow = gross_cash_flow - maintenance_capex - working_capital_charge
+        # Adjusted earnings per Greenwald's methodology
+        distributable_cash_flow = nopat - maintenance_capex + excess_depreciation
         
         if distributable_cash_flow <= 0:
             return self._create_error_result(
@@ -148,10 +150,9 @@ class EPV(BaseValuation):
         
         ebit = revenue * operating_margin
         nopat = ebit * (1 - tax_rate)
-        gross_cash_flow = nopat + depreciation
+        excess_depreciation = depreciation * (0.5 * tax_rate)
         maintenance_capex = capex * maintenance_pct
-        working_capital_charge = abs(stock.net_working_capital) * cost_of_capital if stock.net_working_capital != 0 else 0
-        distributable_cash_flow = gross_cash_flow - maintenance_capex - working_capital_charge
+        distributable_cash_flow = nopat - maintenance_capex + excess_depreciation
         
         if distributable_cash_flow <= 0:
             return 0

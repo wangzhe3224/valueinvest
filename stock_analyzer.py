@@ -252,6 +252,9 @@ def set_valuation_params(stock: Stock, company_type: str, history: StockHistory)
         stock.growth_rate_1_5 = stock.growth_rate
         stock.growth_rate_6_10 = stock.growth_rate * 0.5
     elif company_type == "dividend":
+        # Only use fallback if dividend_growth_rate wasn't fetched from data source
+        if stock.dividend_growth_rate == 0:
+            stock.dividend_growth_rate = min(stock.growth_rate, 5)
         stock.dividend_growth_rate = min(stock.growth_rate, 5)
     elif company_type == "growth":
         stock.cost_of_capital = 10.0  # 成长股要求更高回报

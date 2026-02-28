@@ -111,9 +111,25 @@ class YFinanceFetcher(BaseFetcher):
                 "depreciation": 0,
                 "capex": 0,
                 "dividend_per_share": info.get("trailingAnnualDividendRate", 0) or 0,
-                "dividend_growth_rate": 0,
+                "dividend_growth_rate": 0,  # Will be calculated below
                 "growth_rate": 0,
             }
+
+            # Calculate dividend growth rate from dividend history
+            try:
+                dividends = stock.dividends
+                if dividends is not None and len(dividends) >= 2:
+                    # Get annual dividends by year
+                    div_by_year = dividends.groupby(dividends.index.year).sum()
+                    if len(div_by_year) >= 2:
+                        years = len(div_by_year) - 1
+                        older_div = float(div_by_year.iloc[0])
+                        newer_div = float(div_by_year.iloc[-1])
+                        if older_div > 0:
+                            growth = ((newer_div / older_div) ** (1 / years) - 1) * 100
+                            data["dividend_growth_rate"] = round(growth, 2)
+            except Exception:
+                pass
 
             try:
                 if not financials.empty:

@@ -89,11 +89,12 @@ class OwnerEarnings(BaseValuation):
 
         # Change in working capital - simplified: assume 1% of revenue if not available
         # In practice, you'd need historical NWC to calculate actual change
-        nwc_change = revenue * self.DEFAULT_NWC_CHANGE_PCT if nwc == 0 else 0
         if nwc != 0:
             # Use a portion of NWC as proxy for change (conservative estimate)
             nwc_change = abs(nwc) * 0.1  # Assume 10% change
             warnings.append("Using 10% of NWC as proxy for change in working capital")
+        else:
+            nwc_change = revenue * self.DEFAULT_NWC_CHANGE_PCT
 
         # Calculate Owner Earnings
         owner_earnings = net_income + depreciation - maintenance_capex - nwc_change

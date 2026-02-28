@@ -48,7 +48,7 @@ class GrahamNumber(BaseValuation):
                 "formula": "√(22.5 × EPS × BVPS)",
                 "eps": eps,
                 "bvps": bvps,
-                "pe_pb_product": eps * bvps * (stock.current_price / eps) * (stock.current_price / bvps) / stock.current_price**2 * 22.5,
+                "pe_pb_product": (stock.current_price / eps) * (stock.current_price / bvps),
             },
             components={"eps": eps, "bvps": bvps},
             analysis=analysis,
