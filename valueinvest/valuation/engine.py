@@ -10,7 +10,7 @@ from .ddm import DDM, TwoStageDDM
 from .growth import PEG, GARP, RuleOf40, EVEBITDA
 from .bank import PBValuation, ResidualIncome
 from .magic_formula import MagicFormula
-from .quality import OwnerEarnings, AltmanZScore
+from .quality import OwnerEarnings, AltmanZScore, PiotroskiFScore
 from .value_trap import ValueTrapDetector, detect_value_trap
 from .sbc import SBCAnalysis
 
@@ -33,6 +33,7 @@ class ValuationEngine:
         "altman_z",
         "value_trap",
         "sbc_analysis",
+        "piotroski_f",
     ]
 
     BANK_METHODS = [
@@ -72,6 +73,7 @@ class ValuationEngine:
         "owner_earnings",
         "altman_z",
         "value_trap",
+        "piotroski_f",
     ]
 
     def __init__(self):
@@ -93,8 +95,8 @@ class ValuationEngine:
             "owner_earnings": OwnerEarnings(),
             "ev_ebitda": EVEBITDA(),
             "altman_z": AltmanZScore(),
-            "value_trap": ValueTrapDetector(),
             "sbc_analysis": SBCAnalysis(),
+            "piotroski_f": PiotroskiFScore(),
         }
 
     def run_single(self, stock, method: str, **kwargs) -> ValuationResult:
@@ -174,6 +176,15 @@ class ValuationEngine:
                 industry=kwargs.get("industry"),
                 sector=kwargs.get("sector"),
                 ai_vulnerability_override=kwargs.get("ai_vulnerability_override"),
+            )
+        elif method == "piotroski_f":
+            return PiotroskiFScore(
+                prior_roa=kwargs.get("prior_roa"),
+                prior_debt_ratio=kwargs.get("prior_debt_ratio"),
+                prior_current_ratio=kwargs.get("prior_current_ratio"),
+                prior_shares_outstanding=kwargs.get("prior_shares_outstanding"),
+                prior_gross_margin=kwargs.get("prior_gross_margin"),
+                prior_asset_turnover=kwargs.get("prior_asset_turnover"),
             )
         return self._methods[method]
 

@@ -5,7 +5,8 @@ Includes:
 - Owner Earnings: Warren Buffett's method for calculating true distributable earnings
 - Altman Z-Score: Bankruptcy prediction model
 """
-from typing import Optional
+from typing import Optional, List
+from dataclasses import dataclass
 from .base import BaseValuation, ValuationResult, ValuationRange, FieldRequirement
 
 
@@ -399,3 +400,364 @@ class AltmanZScore(BaseValuation):
             fair_value_range=None,  # Not applicable for risk metrics
             applicability="Applicable" if total_assets > 0 else "Limited",
         )
+
+
+@dataclass
+class FScoreResult:
+    """Result of Piotroski F-Score analysis."""
+    total_score: int
+    profitability_score: int
+    leverage_score: int
+    efficiency_score: int
+    criteria_met: list
+    criteria_failed: list
+    criteria_skipped: list
+    interpretation: str
+    risk_level: str  # Low, Medium, High
+
+
+class PiotroskiFScore(BaseValuation):
+    """
+    Piotroski F-Score: A 9-point scale for financial strength.
+    
+    Developed by Joseph Piotroski (2000), this score identifies 
+    high-quality value stocks by evaluating profitability, leverage,
+    and operating efficiency.
+    
+    The 9 Criteria:
+    
+    Profitability (4 points):
+    1. ROA > 0 (positive return on assets)
+    2. Operating Cash Flow > 0
+    3. ΔROA > 0 (ROA improved vs prior year)
+    4. Accruals: OCF > Net Income (earnings quality)
+    
+    Leverage/Liquidity (3 points):
+    5. ΔLeverage: Debt ratio decreased
+    6. ΔLiquidity: Current ratio increased
+    7. ΔShares: No new shares issued
+    
+    Operating Efficiency (2 points):
+    8. ΔGross Margin: Improved vs prior year
+    9. ΔAsset Turnover: Improved vs prior year
+    
+    Interpretation:
+    8-9: Strong financial position
+    6-7: Good financial health
+    4-5: Average, some concerns
+    0-3: Weak financial position
+    """
+    
+    method_name = "Piotroski F-Score"
+    
+    required_fields = [
+        FieldRequirement("net_income", "Net Income", is_critical=True),
+        FieldRequirement("total_assets", "Total Assets", is_critical=True, min_value=0.01),
+        FieldRequirement("fcf", "Free Cash Flow", is_critical=False),
+        FieldRequirement("current_price", "Current Stock Price", is_critical=True, min_value=0.01),
+    ]
+    
+    best_for = ["Value investing", "Quality screening", "Financial health assessment"]
+    not_for = ["Banks and financials", "Early-stage companies with negative earnings"]
+    
+    def __init__(
+        self,
+        # Prior year data for trend analysis
+        prior_roa: Optional[float] = None,
+        prior_debt_ratio: Optional[float] = None,
+        prior_current_ratio: Optional[float] = None,
+        prior_shares_outstanding: Optional[float] = None,
+        prior_gross_margin: Optional[float] = None,
+        prior_asset_turnover: Optional[float] = None,
+    ):
+        self.prior_roa = prior_roa
+        self.prior_debt_ratio = prior_debt_ratio
+        self.prior_current_ratio = prior_current_ratio
+        self.prior_shares_outstanding = prior_shares_outstanding
+        self.prior_gross_margin = prior_gross_margin
+        self.prior_asset_turnover = prior_asset_turnover
+    
+    def calculate(self, stock) -> ValuationResult:
+        is_valid, missing, warnings = self.validate_data(stock)
+        if not is_valid:
+            return self._create_error_result(
+                stock, f"Missing required data: {', '.join(missing)}", missing
+            )
+        
+        total_assets = stock.total_assets
+        if total_assets <= 0:
+            return self._create_error_result(
+                stock, "Total assets must be positive", ["total_assets"]
+            )
+        
+        criteria_met = []
+        criteria_failed = []
+        criteria_skipped = []
+        
+        # Get prior year data from constructor params or stock fields
+        prior_roa = self.prior_roa if self.prior_roa is not None else getattr(stock, 'prior_roa', None)
+        prior_debt_ratio = self.prior_debt_ratio if self.prior_debt_ratio is not None else getattr(stock, 'prior_debt_ratio', None)
+        prior_current_ratio = self.prior_current_ratio if self.prior_current_ratio is not None else getattr(stock, 'prior_current_ratio', None)
+        prior_shares_outstanding = self.prior_shares_outstanding if self.prior_shares_outstanding is not None else getattr(stock, 'prior_shares_outstanding', None)
+        prior_gross_margin = self.prior_gross_margin if self.prior_gross_margin is not None else getattr(stock, 'prior_gross_margin', None)
+        prior_asset_turnover = self.prior_asset_turnover if self.prior_asset_turnover is not None else getattr(stock, 'prior_asset_turnover', None)
+        
+        # Treat 0 as None (not provided) for prior fields
+        prior_roa = None if prior_roa == 0 else prior_roa
+        prior_debt_ratio = None if prior_debt_ratio == 0 else prior_debt_ratio
+        prior_current_ratio = None if prior_current_ratio == 0 else prior_current_ratio
+        prior_shares_outstanding = None if prior_shares_outstanding == 0 else prior_shares_outstanding
+        prior_gross_margin = None if prior_gross_margin == 0 else prior_gross_margin
+        prior_asset_turnover = None if prior_asset_turnover == 0 else prior_asset_turnover
+        
+        # ===== PROFITABILITY SCORE (4 points) =====
+        profitability_score = 0
+        
+        # F1: ROA > 0
+        roa = stock.net_income / total_assets if total_assets > 0 else 0
+        if roa > 0:
+            profitability_score += 1
+            criteria_met.append("F1: ROA > 0")
+        else:
+            criteria_failed.append("F1: ROA > 0")
+        
+        # F2: Operating Cash Flow > 0
+        # Use FCF as proxy for Operating Cash Flow
+        ocf = stock.fcf if stock.fcf != 0 else stock.net_income * 1.2  # Rough estimate
+        if stock.fcf == 0:
+            warnings.append("FCF not available, using estimated Operating Cash Flow")
+        if ocf > 0:
+            profitability_score += 1
+            criteria_met.append("F2: OCF > 0")
+        else:
+            criteria_failed.append("F2: OCF > 0")
+        
+        # F3: ΔROA > 0 (ROA improved vs prior year)
+        if prior_roa is not None:
+            if roa > prior_roa:
+                profitability_score += 1
+                criteria_met.append("F3: ROA improved")
+            else:
+                criteria_failed.append("F3: ROA improved")
+        else:
+            criteria_skipped.append("F3: ROA improved (no prior year data)")
+        
+        # F4: Accruals Quality (OCF > Net Income)
+        if ocf > stock.net_income:
+            profitability_score += 1
+            criteria_met.append("F4: OCF > Net Income")
+        else:
+            criteria_failed.append("F4: OCF > Net Income")
+        
+        # ===== LEVERAGE/LIQUIDITY SCORE (3 points) =====
+        leverage_score = 0
+        
+        # F5: ΔLeverage (Debt ratio decreased)
+        current_debt_ratio = stock.total_liabilities / total_assets if total_assets > 0 else 0
+        if prior_debt_ratio is not None:
+            if current_debt_ratio < prior_debt_ratio:
+                leverage_score += 1
+                criteria_met.append("F5: Debt ratio decreased")
+            else:
+                criteria_failed.append("F5: Debt ratio decreased")
+        else:
+            criteria_skipped.append("F5: Debt ratio decreased (no prior year data)")
+        
+        # F6: ΔLiquidity (Current ratio increased)
+        current_ratio = stock.current_assets / stock.total_liabilities if stock.total_liabilities > 0 else 0
+        if stock.current_assets == 0:
+            current_ratio = 0
+            warnings.append("Current assets not available, current ratio set to 0")
+        if prior_current_ratio is not None:
+            if current_ratio > prior_current_ratio:
+                leverage_score += 1
+                criteria_met.append("F6: Current ratio increased")
+            else:
+                criteria_failed.append("F6: Current ratio increased")
+        else:
+            criteria_skipped.append("F6: Current ratio increased (no prior year data)")
+        
+        # F7: ΔShares (No new shares issued)
+        if prior_shares_outstanding is not None and prior_shares_outstanding > 0:
+            if stock.shares_outstanding <= prior_shares_outstanding * 1.02:  # Allow 2% tolerance
+                leverage_score += 1
+                criteria_met.append("F7: No significant share dilution")
+            else:
+                criteria_failed.append("F7: No significant share dilution")
+        else:
+            criteria_skipped.append("F7: No share dilution (no prior year data)")
+        
+        # ===== OPERATING EFFICIENCY SCORE (2 points) =====
+        efficiency_score = 0
+        
+        # F8: ΔGross Margin (Improved)
+        # Use operating margin as proxy if gross margin not available
+        gross_margin = stock.operating_margin if stock.operating_margin > 0 else 0
+        if prior_gross_margin is not None:
+            if gross_margin > prior_gross_margin:
+                efficiency_score += 1
+                criteria_met.append("F8: Margin improved")
+            else:
+                criteria_failed.append("F8: Margin improved")
+        else:
+            criteria_skipped.append("F8: Margin improved (no prior year data)")
+        
+        # F9: ΔAsset Turnover (Improved)
+        asset_turnover = stock.revenue / total_assets if total_assets > 0 else 0
+        if prior_asset_turnover is not None:
+            if asset_turnover > prior_asset_turnover:
+                efficiency_score += 1
+                criteria_met.append("F9: Asset turnover improved")
+            else:
+                criteria_failed.append("F9: Asset turnover improved")
+        else:
+            criteria_skipped.append("F9: Asset turnover improved (no prior year data)")
+        
+        # Calculate total score
+        total_score = profitability_score + leverage_score + efficiency_score
+        max_possible_score = 9 - len(criteria_skipped)
+        
+        # Interpretation
+        if total_score >= 8:
+            interpretation = "Strong - Excellent financial health"
+            risk_level = "Low"
+        elif total_score >= 6:
+            interpretation = "Good - Solid financial position"
+            risk_level = "Low"
+        elif total_score >= 4:
+            interpretation = "Average - Some financial concerns"
+            risk_level = "Medium"
+        else:
+            interpretation = "Weak - Poor financial health"
+            risk_level = "High"
+        
+        # Adjust interpretation if many criteria were skipped
+        if len(criteria_skipped) >= 4:
+            interpretation += " (limited data - score may be incomplete)"
+        
+        analysis = [
+            f"F-Score: {total_score}/{max_possible_score} ({len(criteria_skipped)} criteria skipped)",
+            f"Interpretation: {interpretation}",
+            f"Risk Level: {risk_level}",
+            "",
+            f"Profitability: {profitability_score}/4",
+            f"Leverage/Liquidity: {leverage_score}/3", 
+            f"Operating Efficiency: {efficiency_score}/2",
+            "",
+            "Criteria Met:",
+        ]
+        for c in criteria_met:
+            analysis.append(f"  ✓ {c}")
+        
+        analysis.append("")
+        analysis.append("Criteria Failed:")
+        for c in criteria_failed:
+            analysis.append(f"  ✗ {c}")
+        
+        if criteria_skipped:
+            analysis.append("")
+            analysis.append("Criteria Skipped (no prior year data):")
+            for c in criteria_skipped:
+                analysis.append(f"  - {c}")
+        
+        analysis.extend([
+            "",
+            "Key Metrics:",
+            f"  ROA: {roa:.2%}",
+            f"  Debt Ratio: {current_debt_ratio:.2%}",
+            f"  Current Ratio: {current_ratio:.2f}",
+            f"  Asset Turnover: {asset_turnover:.2f}",
+        ])
+        
+        if warnings:
+            analysis.extend(["", "Notes:"] + [f"  - {w}" for w in warnings])
+        
+        # Confidence based on data completeness
+        data_completeness = (9 - len(criteria_skipped)) / 9
+        if data_completeness >= 0.8 and len(warnings) == 0:
+            confidence = "High"
+        elif data_completeness >= 0.5:
+            confidence = "Medium"
+        else:
+            confidence = "Low"
+        
+        return ValuationResult(
+            method=self.method_name,
+            fair_value=stock.current_price,  # This is a quality metric, not valuation
+            current_price=stock.current_price,
+            premium_discount=0,
+            assessment=f"F-Score: {total_score}/9 - {interpretation}",
+            details={
+                "f_score": total_score,
+                "max_score": max_possible_score,
+                "profitability_score": profitability_score,
+                "leverage_score": leverage_score,
+                "efficiency_score": efficiency_score,
+                "criteria_met": criteria_met,
+                "criteria_failed": criteria_failed,
+                "criteria_skipped": criteria_skipped,
+                "interpretation": interpretation,
+                "risk_level": risk_level,
+                "roa": round(roa, 4),
+                "debt_ratio": round(current_debt_ratio, 4),
+                "current_ratio": round(current_ratio, 2),
+                "asset_turnover": round(asset_turnover, 4),
+            },
+            components={
+                "profitability": profitability_score,
+                "leverage": leverage_score,
+                "efficiency": efficiency_score,
+            },
+            analysis=analysis,
+            confidence=confidence,
+            fair_value_range=None,
+            applicability="Applicable" if stock.net_income != 0 else "Limited",
+        )
+
+
+# Convenience function for quick F-Score calculation
+def calculate_f_score(
+    stock,
+    prior_roa: Optional[float] = None,
+    prior_debt_ratio: Optional[float] = None,
+    prior_current_ratio: Optional[float] = None,
+    prior_shares_outstanding: Optional[float] = None,
+    prior_gross_margin: Optional[float] = None,
+    prior_asset_turnover: Optional[float] = None,
+) -> FScoreResult:
+    """
+    Calculate Piotroski F-Score with prior year data.
+    
+    Usage:
+        result = calculate_f_score(
+            stock,
+            prior_roa=0.08,      # Last year's ROA
+            prior_debt_ratio=0.35,
+            prior_current_ratio=1.5,
+            prior_shares_outstanding=1e9,
+            prior_gross_margin=25.0,
+            prior_asset_turnover=0.8,
+        )
+        print(f"F-Score: {result.total_score}/9")
+    """
+    scorer = PiotroskiFScore(
+        prior_roa=prior_roa,
+        prior_debt_ratio=prior_debt_ratio,
+        prior_current_ratio=prior_current_ratio,
+        prior_shares_outstanding=prior_shares_outstanding,
+        prior_gross_margin=prior_gross_margin,
+        prior_asset_turnover=prior_asset_turnover,
+    )
+    val_result = scorer.calculate(stock)
+    
+    return FScoreResult(
+        total_score=val_result.details["f_score"],
+        profitability_score=val_result.details["profitability_score"],
+        leverage_score=val_result.details["leverage_score"],
+        efficiency_score=val_result.details["efficiency_score"],
+        criteria_met=val_result.details["criteria_met"],
+        criteria_failed=val_result.details["criteria_failed"],
+        criteria_skipped=val_result.details["criteria_skipped"],
+        interpretation=val_result.details["interpretation"],
+        risk_level=val_result.details["risk_level"],
+    )

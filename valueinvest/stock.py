@@ -135,6 +135,14 @@ class Stock:
     exchange: str = "SH"
     currency: str = "CNY"
     
+    # Prior year data for F-Score and trend analysis
+    prior_roa: float = 0.0
+    prior_debt_ratio: float = 0.0
+    prior_current_ratio: float = 0.0
+    prior_shares_outstanding: float = 0.0
+    prior_gross_margin: float = 0.0
+    prior_asset_turnover: float = 0.0
+    
     extra: Dict[str, Any] = field(default_factory=dict)
     
     @property
@@ -305,6 +313,13 @@ class Stock:
             sectors=data.get("sectors", []),
             exchange=data.get("exchange", "SH"),
             currency=data.get("currency", "CNY"),
+            # Prior year data for F-Score
+            prior_roa=data.get("prior_roa", 0.0),
+            prior_debt_ratio=data.get("prior_debt_ratio", 0.0),
+            prior_current_ratio=data.get("prior_current_ratio", 0.0),
+            prior_shares_outstanding=data.get("prior_shares_outstanding", 0.0),
+            prior_gross_margin=data.get("prior_gross_margin", 0.0),
+            prior_asset_turnover=data.get("prior_asset_turnover", 0.0),
             extra=data.get("extra", {}),
         )
     

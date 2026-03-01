@@ -16,6 +16,7 @@ A modular Python library for comprehensive stock valuation using multiple method
 - **Insider Trading**: Track executive buy/sell activity (A-share & US)
 - **Buyback Analysis**: Share repurchase tracking and shareholder yield
 - **Free Cash Flow Analysis**: FCF quality, SBC impact, and profitability metrics
+- **Quality Scoring**: Piotroski F-Score, Altman Z-Score for financial health
 - **QFQ/HFQ Price Adjustment**: Proper price adjustment for valuation comparison and real returns
 ## Installation
 
@@ -339,6 +340,90 @@ python stock_analyzer.py AAPL --fcf                  # FCF analysis (default 5 y
 python stock_analyzer.py AAPL --fcf --fcf-years 7   # 7-year FCF history
 python stock_analyzer.py AAPL --buyback --fcf       # Combined shareholder return analysis
 ```
+
+## Piotroski F-Score
+
+The Piotroski F-Score is a 9-point scale that evaluates the financial strength of a company, developed by accounting professor Joseph Piotroski. It's particularly useful for identifying high-quality value stocks.
+
+### Basic Usage
+
+```python
+from valueinvest import Stock
+from valueinvest.valuation import ValuationEngine
+from valueinvest.valuation.quality import calculate_f_score
+
+# Method 1: Via Engine (uses Stock's prior year fields)
+stock = Stock(
+    ticker="AAPL",
+    name="Apple Inc.",
+    current_price=180.0,
+    shares_outstanding=15.5e9,
+    net_income=100e9,
+    total_assets=350e9,
+    total_liabilities=120e9,
+    current_assets=60e9,
+    fcf=110e9,
+    operating_margin=30.0,
+    revenue=400e9,
+    # Prior year data for trend analysis
+    prior_roa=0.28,
+    prior_debt_ratio=0.35,
+    prior_current_ratio=0.9,
+    prior_shares_outstanding=16.0e9,
+    prior_gross_margin=28.0,
+    prior_asset_turnover=1.1,
+)
+
+engine = ValuationEngine()
+result = engine.run_single(stock, "piotroski_f")
+print(f"F-Score: {result.details['f_score']}/9")
+print(f"Risk Level: {result.details['risk_level']}")
+
+# Method 2: Via convenience function
+fscore = calculate_f_score(
+    stock,
+    prior_roa=0.28,
+    prior_debt_ratio=0.35,
+    prior_current_ratio=0.9,
+    prior_shares_outstanding=16.0e9,
+    prior_gross_margin=28.0,
+    prior_asset_turnover=1.1,
+)
+print(f"F-Score: {fscore.total_score}/9")
+print(f"Profitability: {fscore.profitability_score}/4")
+print(f"Leverage: {fscore.leverage_score}/3")
+print(f"Efficiency: {fscore.efficiency_score}/2")
+```
+
+### The 9 Criteria
+
+| Category | Criteria | Points |
+| :--- | :--- | :--- |
+| **Profitability** | ROA > 0 | 1 |
+| | Operating Cash Flow > 0 | 1 |
+| | ROA improved vs prior year | 1 |
+| | OCF > Net Income (earnings quality) | 1 |
+| **Leverage/Liquidity** | Debt ratio decreased | 1 |
+| | Current ratio increased | 1 |
+| | No significant share dilution | 1 |
+| **Operating Efficiency** | Gross margin improved | 1 |
+| | Asset turnover improved | 1 |
+
+### Interpretation
+
+| Score | Interpretation | Risk Level |
+| :--- | :--- | :--- |
+| 8-9 | Strong - Excellent financial health | Low |
+| 6-7 | Good - Solid financial position | Low |
+| 4-5 | Average - Some financial concerns | Medium |
+| 0-3 | Weak - Poor financial health | High |
+
+### CLI Usage
+
+```bash
+python stock_analyzer.py 600887 --method piotroski_f
+```
+
 ### News Data Sources
 
 | Source | Markets | News | Guidance | Auth |
@@ -405,6 +490,8 @@ Automatic classification based on ticker and financials:
 | Rule of 40 | SaaS/Subscription | Growth % + Margin % ≥ 40 |
 | P/B Valuation | Banks | Fair P/B = (ROE - g) / (COE - g) |
 | Residual Income | Banks | Book Value + PV(Excess Returns) |
+| Piotroski F-Score | Quality screening | 9-point financial strength score |
+| Altman Z-Score | Bankruptcy risk | Z = 1.2X1 + 1.4X2 + 3.3X3 + 0.6X4 + 1.0X5 |
 
 ## Project Structure
 
@@ -420,6 +507,8 @@ valueinvest/
 │   ├── ddm.py               # Dividend models
 │   ├── growth.py            # Growth valuation
 │   ├── bank.py              # Bank valuation
+│   ├── quality.py           # Piotroski F-Score, Altman Z-Score, Owner Earnings
+│   ├── value_trap.py        # Value trap detection
 │   └── magic_formula.py     # Magic Formula
 ├── news/                    # News & sentiment analysis
 │   ├── base.py              # NewsItem, Guidance, NewsAnalysisResult
