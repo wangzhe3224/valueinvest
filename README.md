@@ -17,6 +17,8 @@ A modular Python library for comprehensive stock valuation using multiple method
 - **Buyback Analysis**: Share repurchase tracking and shareholder yield
 - **Free Cash Flow Analysis**: FCF quality, SBC impact, and profitability metrics
 - **Quality Scoring**: Piotroski F-Score, Altman Z-Score for financial health
+- **Earnings Manipulation Detection**: Beneish M-Score for fraud risk assessment
+- **Relative Valuation**: PE/PB comparison vs historical and peer averages
 - **QFQ/HFQ Price Adjustment**: Proper price adjustment for valuation comparison and real returns
 ## Installation
 
@@ -424,6 +426,161 @@ print(f"Efficiency: {fscore.efficiency_score}/2")
 python stock_analyzer.py 600887 --method piotroski_f
 ```
 
+## Beneish M-Score
+
+The Beneish M-Score is an 8-variable model developed by Professor Messod D. Beneish to detect earnings manipulation. It identifies companies that may be manipulating their financial statements.
+
+### Basic Usage
+
+```python
+from valueinvest import Stock
+from valueinvest.valuation import ValuationEngine
+from valueinvest.valuation.mscore import calculate_m_score
+
+# Method 1: Via Engine (requires prior year data in Stock)
+stock = Stock(
+    ticker="AAPL",
+    name="Apple Inc.",
+    current_price=180.0,
+    revenue=400e9,
+    net_income=100e9,
+    total_assets=350e9,
+    accounts_receivable=30e9,
+    # Prior year data for comparison
+    prior_revenue=380e9,
+    prior_gross_margin=28.0,
+    prior_total_assets=330e9,
+)
+
+engine = ValuationEngine()
+result = engine.run_single(stock, "beneish_m")
+print(f"M-Score: {result.details['m_score']}")
+print(f"Manipulation Risk: {result.details['manipulation_risk']}")
+
+# Method 2: Via convenience function
+m_result = calculate_m_score(
+    stock,
+    prior_revenue=380e9,
+    prior_gross_margin=28.0,
+    prior_total_assets=330e9,
+)
+print(f"M-Score: {m_result.m_score:.2f}")
+print(f"Is Manipulator: {m_result.is_manipulator}")
+```
+
+### The 8 Variables
+
+| Variable | Name | What It Measures |
+| :--- | :--- | :--- |
+| DSRI | Days Sales Receivable Index | Revenue inflation via loose credit |
+| GMI | Gross Margin Index | Deteriorating margins |
+| AQI | Asset Quality Index | Increased intangibles/other assets |
+| SGI | Sales Growth Index | Pressure from high growth |
+| DEPI | Depreciation Index | Aggressive depreciation policy |
+| SGAI | SG&A Index | Declining efficiency |
+| LVGI | Leverage Index | Increasing debt |
+| TATA | Total Accruals to Total Assets | Low earnings quality |
+
+### Interpretation
+
+| M-Score | Interpretation | Risk Level |
+| :--- | :--- | :--- |
+| < -2.22 | Non-manipulator | Low |
+| -2.22 to -1.78 | Potential manipulator | Medium |
+| > -1.78 | High probability manipulator | High |
+
+### CLI Usage
+
+```bash
+python stock_analyzer.py AAPL --method beneish_m
+```
+
+---
+
+## Relative Valuation (PE/PB)
+
+Relative valuation compares current multiples to historical averages and peer groups - the standard approach used in professional equity research.
+
+### PE Relative Valuation
+
+Compares current P/E ratio to historical and peer averages. Best for profitable companies with stable earnings.
+
+#### Basic Usage
+
+```python
+from valueinvest import Stock
+from valueinvest.valuation import ValuationEngine
+
+stock = Stock(
+    ticker="AAPL",
+    name="Apple Inc.",
+    current_price=180.0,
+    eps=6.0,
+    pe_ratio=30.0,
+    historical_pe=[25, 28, 30, 32, 27],  # 5-year history
+)
+
+engine = ValuationEngine()
+result = engine.run_single(stock, "pe_relative")
+
+print(f"Current P/E: {result.details['current_pe']:.1f}x")
+print(f"Historical Avg: {result.details['historical_avg_pe']:.1f}x")
+print(f"Percentile: {result.details['percentile_in_history']:.0f}th")
+print(f"vs Historical: {result.details['vs_historical_pct']:+.1f}%")
+```
+
+#### Interpretation
+
+- **Bottom quartile (0-25th percentile)**: Potentially undervalued or deteriorating fundamentals
+- **Middle range (40-60th percentile)**: Fair value
+- **Top quartile (75-100th percentile)**: Potentially overvalued or improving fundamentals
+
+### PB Relative Valuation
+
+Compares current P/B ratio to historical and peer averages. Best for banks, financials, and asset-heavy companies.
+
+#### Basic Usage
+
+```python
+from valueinvest import Stock
+from valueinvest.valuation import ValuationEngine
+
+stock = Stock(
+    ticker="601398",
+    name="工商银行",
+    current_price=5.0,
+    bvps=8.0,
+    pb_ratio=0.625,
+    historical_pb=[0.7, 0.8, 0.65, 0.75, 0.72],  # 5-year history
+)
+
+engine = ValuationEngine()
+result = engine.run_single(stock, "pb_relative")
+
+print(f"Current P/B: {result.details['current_pb']:.2f}x")
+print(f"Historical Avg: {result.details['historical_avg_pb']:.2f}x")
+print(f"Fair Value: ${result.fair_value:.2f}")
+```
+
+#### When to Use P/B Relative
+
+- Banks and financial institutions
+- Asset-heavy industries (manufacturing, utilities)
+- Value investing strategies
+- Companies trading below book value (P/B < 1.0)
+
+### CLI Usage
+
+```bash
+# PE Relative
+python stock_analyzer.py AAPL --method pe_relative
+
+# PB Relative
+python stock_analyzer.py 601398 --method pb_relative
+```
+
+---
+
 ### News Data Sources
 
 | Source | Markets | News | Guidance | Auth |
@@ -490,6 +647,9 @@ Automatic classification based on ticker and financials:
 | Rule of 40 | SaaS/Subscription | Growth % + Margin % ≥ 40 |
 | P/B Valuation | Banks | Fair P/B = (ROE - g) / (COE - g) |
 | Residual Income | Banks | Book Value + PV(Excess Returns) |
+| **PE Relative** | **Peer comparison** | **Current PE vs Historical/Peer Avg** |
+| **PB Relative** | **Asset-heavy, Banks** | **Current PB vs Historical/Peer Avg** |
+| **Beneish M-Score** | **Fraud detection** | **8-variable earnings manipulation score** |
 | Piotroski F-Score | Quality screening | 9-point financial strength score |
 | Altman Z-Score | Bankruptcy risk | Z = 1.2X1 + 1.4X2 + 3.3X3 + 0.6X4 + 1.0X5 |
 
@@ -509,7 +669,9 @@ valueinvest/
 │   ├── bank.py              # Bank valuation
 │   ├── quality.py           # Piotroski F-Score, Altman Z-Score, Owner Earnings
 │   ├── value_trap.py        # Value trap detection
-│   └── magic_formula.py     # Magic Formula
+│   ├── magic_formula.py     # Magic Formula
+│   ├── mscore.py            # Beneish M-Score (earnings manipulation)
+│   └── relative.py          # PE/PB Relative valuation
 ├── news/                    # News & sentiment analysis
 │   ├── base.py              # NewsItem, Guidance, NewsAnalysisResult
 │   ├── registry.py          # Market detection & fetcher registry

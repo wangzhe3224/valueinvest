@@ -51,7 +51,7 @@ class YFinanceFetcher(BaseFetcher):
                 "market_cap": info.get("marketCap", 0),
                 "pe_ratio": info.get("trailingPE", 0) or 0,
                 "pb_ratio": info.get("priceToBook", 0) or 0,
-                "dividend_yield": (info.get("dividendYield", 0) or 0) * 100,
+                "dividend_yield": info.get("dividendYield", 0) or 0,
                 "currency": info.get("currency", "USD"),
                 "exchange": info.get("exchange", ""),
                 "sector": info.get("sector", ""),

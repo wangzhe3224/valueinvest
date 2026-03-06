@@ -13,6 +13,8 @@ from .magic_formula import MagicFormula
 from .quality import OwnerEarnings, AltmanZScore, PiotroskiFScore
 from .value_trap import ValueTrapDetector, detect_value_trap
 from .sbc import SBCAnalysis
+from .relative import PERelativeValuation, PBRelativeValuation
+from .mscore import BeneishMScore
 
 
 class ValuationEngine:
@@ -34,6 +36,9 @@ class ValuationEngine:
         "value_trap",
         "sbc_analysis",
         "piotroski_f",
+        "pe_relative",  # NEW
+        "pb_relative",  # NEW
+        "beneish_m",  # NEW
     ]
 
     BANK_METHODS = [
@@ -97,6 +102,10 @@ class ValuationEngine:
             "altman_z": AltmanZScore(),
             "sbc_analysis": SBCAnalysis(),
             "piotroski_f": PiotroskiFScore(),
+            # New Phase 1 methods
+            "pe_relative": PERelativeValuation(),
+            "pb_relative": PBRelativeValuation(),
+            "beneish_m": BeneishMScore(),
         }
 
     def run_single(self, stock, method: str, **kwargs) -> ValuationResult:

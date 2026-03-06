@@ -97,6 +97,19 @@ class Stock:
     total_assets: float = 0.0
     net_debt: float = 0.0
     
+    # Debt structure details (for accurate EV, ROIC, interest coverage)
+    short_term_debt: float = 0.0
+    long_term_debt: float = 0.0
+    interest_expense: float = 0.0
+    
+    # Working capital components (for Owner Earnings accuracy)
+    accounts_receivable: float = 0.0
+    inventory: float = 0.0
+    accounts_payable: float = 0.0
+    
+    # Historical multiples (for relative valuation)
+    historical_pe: List[float] = field(default_factory=list)
+    historical_pb: List[float] = field(default_factory=list)
     # SBC (Stock-Based Compensation) related fields
     sbc: float = 0.0                    # Stock-Based Compensation (annual)
     shares_issued: float = 0.0          # Shares issued from SBC/options (annual)
@@ -283,6 +296,14 @@ class Stock:
             total_liabilities=data.get("total_liabilities", 0.0),
             total_assets=data.get("total_assets", 0.0),
             net_debt=data.get("net_debt", 0.0),
+            short_term_debt=data.get("short_term_debt", 0.0),
+            long_term_debt=data.get("long_term_debt", 0.0),
+            interest_expense=data.get("interest_expense", 0.0),
+            accounts_receivable=data.get("accounts_receivable", 0.0),
+            inventory=data.get("inventory", 0.0),
+            accounts_payable=data.get("accounts_payable", 0.0),
+            historical_pe=data.get("historical_pe", []),
+            historical_pb=data.get("historical_pb", []),
             sbc=data.get("sbc", 0.0),
             shares_issued=data.get("shares_issued", 0.0),
             shares_repurchased=data.get("shares_repurchased", 0.0),
