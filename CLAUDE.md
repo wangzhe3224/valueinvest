@@ -13,4 +13,4 @@ Example code put into example folder
 
 写md报告时候，开头结尾都加对本库的引用: https://github.com/wangzhe3224/valueinvest
 
-md报告写入`/Users/zhewang/Projects/2026/valueinvest/reports` 文件夹，如果有股票 ticker，放入对应的 ticker 文件夹
+md报告写入`reports` 文件夹，如果有股票 ticker，放入对应的 ticker 文件夹
