@@ -15,6 +15,18 @@ from .value_trap import ValueTrapDetector, detect_value_trap
 from .sbc import SBCAnalysis
 from .relative import PERelativeValuation, PBRelativeValuation
 from .mscore import BeneishMScore
+# Cyclical valuation methods
+try:
+    from ..cyclical.valuation import (
+        CyclicalPBValuation,
+        CyclicalPEValuation,
+        CyclicalFCFValuation,
+        CyclicalDividendValuation,
+    )
+    CYCLICAL_AVAILABLE = True
+except ImportError:
+    CYCLICAL_AVAILABLE = False
+from .mscore import BeneishMScore
 
 
 class ValuationEngine:
@@ -39,6 +51,11 @@ class ValuationEngine:
         "pe_relative",  # NEW
         "pb_relative",  # NEW
         "beneish_m",  # NEW
+        # Cyclical methods
+        "cyclical_pb",
+        "cyclical_pe",
+        "cyclical_fcf",
+        "cyclical_dividend",
     ]
 
     BANK_METHODS = [
@@ -81,6 +98,13 @@ class ValuationEngine:
         "piotroski_f",
     ]
 
+    CYCLICAL_METHODS = [
+        "cyclical_pb",
+        "cyclical_pe",
+        "cyclical_fcf",
+        "cyclical_dividend",
+    ]
+
     def __init__(self):
         self._methods = {
             "graham_number": GrahamNumber(),
@@ -106,6 +130,13 @@ class ValuationEngine:
             "pe_relative": PERelativeValuation(),
             "pb_relative": PBRelativeValuation(),
             "beneish_m": BeneishMScore(),
+            # Cyclical methods (optional)
+            **({
+                "cyclical_pb": CyclicalPBValuation(),
+                "cyclical_pe": CyclicalPEValuation(),
+                "cyclical_fcf": CyclicalFCFValuation(),
+                "cyclical_dividend": CyclicalDividendValuation(),
+            } if CYCLICAL_AVAILABLE else {})
         }
 
     def run_single(self, stock, method: str, **kwargs) -> ValuationResult:
@@ -233,6 +264,12 @@ class ValuationEngine:
 
     def run_value(self, stock, **kwargs) -> List[ValuationResult]:
         return self.run_multiple(stock, self.VALUE_METHODS, **kwargs)
+
+    def run_cyclical(self, stock, **kwargs) -> List[ValuationResult]:
+        """Run cyclical stock valuation methods."""
+        if not CYCLICAL_AVAILABLE:
+            return []
+        return self.run_multiple(stock, self.CYCLICAL_METHODS, **kwargs)
 
     def run_all(self, stock, **kwargs) -> List[ValuationResult]:
         return self.run_multiple(stock, list(self._methods.keys()), **kwargs)

@@ -19,6 +19,7 @@ A modular Python library for comprehensive stock valuation using multiple method
 - **Quality Scoring**: Piotroski F-Score, Altman Z-Score for financial health
 - **Earnings Manipulation Detection**: Beneish M-Score for fraud risk assessment
 - **Relative Valuation**: PE/PB comparison vs historical and peer averages
+- **Cyclical Stock Analysis**: Cycle position scoring, cyclical-adjusted valuation (PB/PE/FCF), market-specific strategies
 - **QFQ/HFQ Price Adjustment**: Proper price adjustment for valuation comparison and real returns
 ## Installation
 
@@ -40,35 +41,35 @@ pip install -e ".[tushare]"    # A-shares with Tushare (requires token)
 
 ```bash
 # Analyze A-share stock
-python stock_analyzer.py 600887           # 伊利股份
-python stock_analyzer.py 600900           # 长江电力
-python stock_analyzer.py 601398 --bank    # 工商银行 (force bank analysis)
+python scripts/stock_analyzer.py 600887           # 伊利股份
+python scripts/stock_analyzer.py 600900           # 长江电力
+python scripts/stock_analyzer.py 601398 --bank    # 工商银行 (force bank analysis)
 
 # Analyze US stock
-python stock_analyzer.py AAPL
+python scripts/stock_analyzer.py AAPL
 
 # Options
-python stock_analyzer.py 600887 --period 3y     # 3-year history
-python stock_analyzer.py 600900 --dividend      # Force dividend analysis
-python stock_analyzer.py 601398 --growth        # Force growth analysis
+python scripts/stock_analyzer.py 600887 --period 3y     # 3-year history
+python scripts/stock_analyzer.py 600900 --dividend      # Force dividend analysis
+python scripts/stock_analyzer.py 601398 --growth        # Force growth analysis
 
 # With news analysis
-python stock_analyzer.py 600887 --news          # Include news sentiment
-python stock_analyzer.py AAPL --news --llm      # Use LLM for analysis
-python stock_analyzer.py 600887 --news --news-days 60  # 60-day news
+python scripts/stock_analyzer.py 600887 --news          # Include news sentiment
+python scripts/stock_analyzer.py AAPL --news --llm      # Use LLM for analysis
+python scripts/stock_analyzer.py 600887 --news --news-days 60  # 60-day news
 
 # With insider trading analysis
-python stock_analyzer.py 600887 --insider       # Include insider trading
-python stock_analyzer.py AAPL --insider --insider-days 180  # 180-day insider trades
+python scripts/stock_analyzer.py 600887 --insider       # Include insider trading
+python scripts/stock_analyzer.py AAPL --insider --insider-days 180  # 180-day insider trades
 
 # With buyback analysis (recommended for US stocks)
-python stock_analyzer.py AAPL --buyback         # Include buyback analysis
-python stock_analyzer.py 600887 --buyback       # A-share buyback analysis
+python scripts/stock_analyzer.py AAPL --buyback         # Include buyback analysis
+python scripts/stock_analyzer.py 600887 --buyback       # A-share buyback analysis
 
 # With FCF (Free Cash Flow) analysis
-python stock_analyzer.py AAPL --fcf             # Include FCF analysis
-python stock_analyzer.py AAPL --fcf --fcf-years 7  # 7-year FCF history
-python stock_analyzer.py AAPL --buyback --fcf   # Full shareholder return analysis
+python scripts/stock_analyzer.py AAPL --fcf             # Include FCF analysis
+python scripts/stock_analyzer.py AAPL --fcf --fcf-years 7  # 7-year FCF history
+python scripts/stock_analyzer.py AAPL --buyback --fcf   # Full shareholder return analysis
 
 ### Python API
 
@@ -189,7 +190,7 @@ enhanced = enhance_analysis_with_agent_result(analysis, agent_response)
 CLI usage for agent-based analysis:
 ```bash
 # Use coding agent for deep news analysis
-python stock_analyzer.py 600887 --news --agent
+python scripts/stock_analyzer.py 600887 --news --agent
 ```
 
 ### Guidance & Analyst Data
@@ -283,9 +284,9 @@ for record in result.records[:5]:
 ### CLI Usage
 
 ```bash
-python stock_analyzer.py AAPL --buyback            # US stock buyback analysis
-python stock_analyzer.py 600887 --buyback          # A-share buyback analysis
-python stock_analyzer.py AAPL --buyback --buyback-days 730  # 2-year history
+python scripts/stock_analyzer.py AAPL --buyback            # US stock buyback analysis
+python scripts/stock_analyzer.py 600887 --buyback          # A-share buyback analysis
+python scripts/stock_analyzer.py AAPL --buyback --buyback-days 730  # 2-year history
 ```
 
 ## Free Cash Flow (FCF) Analysis
@@ -338,9 +339,9 @@ print(f"FCF CAGR: {summary.fcf_cagr:.1f}%")
 ### CLI Usage
 
 ```bash
-python stock_analyzer.py AAPL --fcf                  # FCF analysis (default 5 years)
-python stock_analyzer.py AAPL --fcf --fcf-years 7   # 7-year FCF history
-python stock_analyzer.py AAPL --buyback --fcf       # Combined shareholder return analysis
+python scripts/stock_analyzer.py AAPL --fcf                  # FCF analysis (default 5 years)
+python scripts/stock_analyzer.py AAPL --fcf --fcf-years 7   # 7-year FCF history
+python scripts/stock_analyzer.py AAPL --buyback --fcf       # Combined shareholder return analysis
 ```
 
 ## Piotroski F-Score
@@ -423,7 +424,7 @@ print(f"Efficiency: {fscore.efficiency_score}/2")
 ### CLI Usage
 
 ```bash
-python stock_analyzer.py 600887 --method piotroski_f
+python scripts/stock_analyzer.py 600887 --method piotroski_f
 ```
 
 ## Beneish M-Score
@@ -492,7 +493,7 @@ print(f"Is Manipulator: {m_result.is_manipulator}")
 ### CLI Usage
 
 ```bash
-python stock_analyzer.py AAPL --method beneish_m
+python scripts/stock_analyzer.py AAPL --method beneish_m
 ```
 
 ---
@@ -573,10 +574,106 @@ print(f"Fair Value: ${result.fair_value:.2f}")
 
 ```bash
 # PE Relative
-python stock_analyzer.py AAPL --method pe_relative
+python scripts/stock_analyzer.py AAPL --method pe_relative
 
 # PB Relative
-python stock_analyzer.py 601398 --method pb_relative
+python scripts/stock_analyzer.py 601398 --method pb_relative
+```
+
+---
+
+## Cyclical Stock Analysis
+
+The cyclical stock analysis module provides comprehensive tools for analyzing cyclical stocks (shipping, steel, metals, energy, etc.) with different strategies for A-share and US markets.
+
+### Key Features
+
+- **Cycle Position Scoring**: Multi-dimensional scoring (valuation, financial, industry, sentiment) to determine cycle phase (Bottom → Top)
+- **Cyclical-Adjusted Valuation Methods**:
+  - **Cyclical PB**: Dynamic PB thresholds based on cycle phase (A-share: Buy < 1.0-1.2x, US: Buy < 1.0-1.4x)
+  - **Cyclical PE**: Normalized earnings using 3-5 year averages to avoid "cycle top low PE trap"
+  - **Cyclical FCF**: Free cash flow yield analysis (A-share: Buy > 10%, US: Buy > 12%)
+  - **Cyclical Dividend**: Dividend sustainability assessment for US stocks
+- **Differentiated Strategies**:
+  - **A-Share**: Trading-oriented (1-3 year holding, +50-200% target return)
+  - **US**: Dividend-defensive (5-10 year holding, 6-10% annual return)
+- **Investment Rating**: 强烈推荐/推荐/中性/谨慎/不推荐 with 0-100 scoring
+
+### Basic Usage
+
+```python
+from valueinvest.cyclical import (
+    CyclicalAnalysisEngine,
+    CyclicalStock,
+    CycleType,
+    MarketType,
+)
+
+# Create stock data
+stock = CyclicalStock(
+    ticker="601919",
+    name="中远海控",
+    market=MarketType.A_SHARE,
+    current_price=15.79,
+    cycle_type=CycleType.SHIPPING,
+    pb=1.09,
+    bvps=14.5,
+    eps=1.73,
+    pe=9.1,
+    fcf_yield=0.079,  # 7.9%
+    fcf_per_share=1.25,
+    fcf_to_net_income=1.1,
+    dividend_yield=0.05,  # 5.0%
+    debt_ratio=0.35,
+    roe=0.12,  # 12.0%
+    historical_pb=[1.5, 2.0, 1.8, 2.5, 1.2],
+)
+
+# Run complete analysis
+engine = CyclicalAnalysisEngine()
+result = engine.analyze(stock)
+
+# View results
+print(f"股票: {result.stock.name} ({result.stock.ticker})")
+print(f"周期阶段: {result.cycle_analysis.phase_display}")
+print(f"周期得分: {result.cycle_analysis.total_score:.2f}/5.0")
+print(f"综合评分: {result.overall_score}/100")
+print(f"投资评级: {result.investment_rating}")
+print(f"投资行动: {result.strategy_recommendation.action_display}")
+print(f"建议仓位: {result.strategy_recommendation.target_allocation:.1%}")
+print(f"目标价格: ¥{result.strategy_recommendation.target_price:.2f}")
+```
+
+### Cycle Types
+
+| Cycle Type | Examples | Characteristics |
+| :--- | :--- | :--- |
+| SHIPPING | 中远海控, 中远海能 | BDI-driven, 3-5 year cycles |
+| COMMODITY | 中国铝业, 紫金矿业 | Metal prices, global demand |
+| CAPACITY | 宝钢股份, 万华化学 | Supply-demand, capex cycles |
+| ENERGY | 中国石油, Exxon | Oil/gas prices, OPEC policy |
+| FINANCIAL | Banks, Insurance | Interest rate, credit cycles |
+| REAL_ESTATE | Developers | Property market, policy |
+
+### Cycle Phases
+
+| Phase | Score | Strategy | Valuation Focus |
+| :--- | :--- | :--- | :--- |
+| Bottom | 0-2.0 | Strong Buy | PB < 1.0, FCF yield > 10% |
+| Early Upside | 2.0-3.0 | Buy | PB 1.0-1.5, momentum building |
+| Mid Upside | 3.0-3.5 | Hold/Add | PB 1.5-2.0, ride the trend |
+| Late Upside | 3.5-4.0 | Reduce | PB > 2.0, take profits |
+| Top | 4.0-5.0 | Sell | PB > 2.5-3.0, exit position |
+
+### CLI Usage
+
+```bash
+# Analyze cyclical stock
+python scripts/stock_analyzer.py 601919 --cyclical
+python scripts/stock_analyzer.py 601919 --cyclical --cycle-type SHIPPING
+
+# With news analysis
+python scripts/stock_analyzer.py 601919 --cyclical --news
 ```
 
 ---
@@ -652,6 +749,10 @@ Automatic classification based on ticker and financials:
 | **Beneish M-Score** | **Fraud detection** | **8-variable earnings manipulation score** |
 | Piotroski F-Score | Quality screening | 9-point financial strength score |
 | Altman Z-Score | Bankruptcy risk | Z = 1.2X1 + 1.4X2 + 3.3X3 + 0.6X4 + 1.0X5 |
+| **Cyclical PB** | **Cyclical stocks** | **Dynamic PB thresholds based on cycle phase** |
+| **Cyclical PE** | **Cyclical stocks** | **Normalized earnings using 3-5 year average** |
+| **Cyclical FCF** | **Cyclical stocks** | **FCF yield with cycle-adjusted thresholds** |
+| **Cyclical Dividend** | **Cyclical stocks (US)** | **Dividend sustainability + FCF coverage** |
 
 ## Project Structure
 
@@ -704,6 +805,19 @@ valueinvest/
 │   └── fetcher/
 │       ├── base.py          # BaseCashFlowFetcher (ABC)
 │       └── yfinance_cashflow.py # US stock cash flow data
+├── cyclical/                # Cyclical stock analysis
+│   ├── base.py              # CyclicalStock, CycleScore, ValuationResult
+│   ├── enums.py             # CycleType, CyclePhase, MarketType, etc.
+│   ├── engine.py            # CyclicalAnalysisEngine
+│   ├── position_scorer.py   # Cycle position scoring system
+│   ├── valuation/           # Cyclical valuation methods
+│   │   ├── cyclical_pb.py   # Cyclical PB valuation
+│   │   ├── cyclical_pe.py   # Cyclical PE valuation
+│   │   ├── cyclical_fcf.py  # Cyclical FCF valuation
+│   │   └── cyclical_dividend.py # Cyclical dividend valuation
+│   └── strategy/            # Market-specific strategies
+│       ├── ashare_strategy.py  # A-share (trading-oriented)
+│       └── us_strategy.py      # US (dividend-defensive)
 ├── data/
 │   ├── presets.py           # Pre-configured stocks
 │   └── fetcher/             # Data fetching
@@ -715,7 +829,7 @@ valueinvest/
     ├── reporter.py          # Report formatting
     └── enhanced_reporter.py # Enhanced report with news
 
-stock_analyzer.py            # CLI entry point
+scripts/stock_analyzer.py            # CLI entry point
 
 ## Example Output
 

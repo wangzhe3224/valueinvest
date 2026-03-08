@@ -32,6 +32,7 @@ def analyze_stock(
     buyback_days: int = 365,
     include_fcf: bool = False,
     fcf_years: int = 5,
+    include_cyclical: bool = False,
 ):
     print(f"\n正在获取 {ticker} 基本面数据...")
 
@@ -93,9 +94,56 @@ def analyze_stock(
         except Exception as e:
             print(f"警告: 无法获取自由现金流数据 - {e}")
 
+    cyclical_result = None
+    if include_cyclical:
+        print(f"正在分析 {ticker} 周期股特征...")
+        try:
+            from valueinvest.cyclical import (
+                CyclicalAnalysisEngine,
+                CyclicalStock,
+                CycleType,
+                MarketType,
+            )
+            
+            # 检测市场类型
+            if ticker.isdigit() and len(ticker) == 6:
+                market = MarketType.A_SHARE
+            else:
+                market = MarketType.US
+            
+            # 检测周期类型
+            cycle_type = CyclicalAnalysisEngine.detect_cycle_type(ticker, stock.name)
+            
+            # 创建周期股数据
+            cyclical_stock = CyclicalStock(
+                ticker=ticker,
+                name=stock.name,
+                market=market,
+                current_price=stock.current_price,
+                cycle_type=cycle_type,
+                pb=stock.pb_ratio if hasattr(stock, 'pb_ratio') else stock.bvps / stock.current_price if stock.bvps > 0 else 0,
+                bvps=stock.bvps,
+                eps=stock.eps,
+                pe=stock.pe_ratio if hasattr(stock, 'pe_ratio') else stock.current_price / stock.eps if stock.eps > 0 else 0,
+                fcf_yield=stock.fcf / (stock.current_price * stock.shares_outstanding) if stock.fcf > 0 else 0,
+                fcf_per_share=stock.fcf / stock.shares_outstanding if stock.shares_outstanding > 0 else 0,
+                fcf_to_net_income=stock.fcf / stock.net_income if stock.net_income > 0 else 0,
+                dividend_yield=stock.dividend_yield,
+                debt_ratio=stock.total_liabilities / stock.total_assets if stock.total_assets > 0 else 0,
+                roe=stock.roe,
+                historical_pb=stock.historical_pb if hasattr(stock, 'historical_pb') else [],
+            )
+            
+            # 运行分析
+            engine = CyclicalAnalysisEngine()
+            cyclical_result = engine.analyze(cyclical_stock)
+            
+            print(f"✓ 周期股分析完成")
+        except Exception as e:
+            print(f"警告: 无法进行周期股分析 - {e}")
+
     print_report(
-        stock, history, company_type, history_period, news_analysis, insider_result, buyback_result, fcf_result
-    )
+        stock, history, company_type, history_period, news_analysis, insider_result, buyback_result, fcf_result, cyclical_result
 
 
 def detect_company_type(stock: Stock, history: StockHistory) -> str:
@@ -270,6 +318,7 @@ def print_report(
     insider_result=None,
     buyback_result=None,
     fcf_result=None,
+    cyclical_result=None,
 ):
     engine = ValuationEngine()
 
@@ -780,6 +829,7 @@ def main():
     parser.add_argument("--buyback-days", type=int, default=365, help="回购分析天数 (默认365)")
     parser.add_argument("--fcf", action="store_true", help="包含自由现金流分析 (推荐与回购分析一起使用)")
     parser.add_argument("--fcf-years", type=int, default=5, help="FCF分析年数 (默认5)")
+    parser.add_argument("--cyclical", "-c", action="store_true", help="周期股分析 (航运、钢铁、有色、能源等)")
 
     args = parser.parse_args()
 
@@ -789,6 +839,8 @@ def main():
         args.type = "dividend"
     elif args.growth:
         args.type = "growth"
+    elif args.cyclical:
+        args.type = "cyclical"
 
     analyze_stock(
         args.ticker,
