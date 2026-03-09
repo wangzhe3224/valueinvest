@@ -3,11 +3,14 @@
 Code that leverage valueinvest library put into scripts folder, not root folder or valueinvest folder.
 Example code put into example folder
 
-每次有新的 feature 更新，同时更新 readme
+每次有新的 feature 更新，同时更新 readme 如果需要的话；具体的变化放入 changelog.md 不要放在 README
+changelog should be concise and short.
 
 测试运行代码使用本地的 `.venv`
 
 ## 报告规则
+
+运行代码中生成报告过程中，如果出现问题，及时修复源代码。
 
 报告中的数据应该使用 API 收集最新数据，如果缺少应该上网搜索尝试获得
 
