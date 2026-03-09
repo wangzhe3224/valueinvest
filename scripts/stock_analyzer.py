@@ -144,8 +144,7 @@ def analyze_stock(
 
     print_report(
         stock, history, company_type, history_period, news_analysis, insider_result, buyback_result, fcf_result, cyclical_result
-
-
+    )
 def detect_company_type(stock: Stock, history: StockHistory) -> str:
     UTILITIES_TICKERS = {
         "600900",

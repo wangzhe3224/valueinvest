@@ -50,6 +50,11 @@ class AKShareFetcher(BaseFetcher):
             return 0.0
 
     def fetch_quote(self, ticker: str) -> FetchResult:
+        """Fetch current price and basic info.
+        
+        Returns real-time price from AKShare.
+        Note: During non-trading hours, price may be from last trading day.
+        """
         try:
             ak = self._get_akshare()
 
@@ -70,8 +75,16 @@ class AKShareFetcher(BaseFetcher):
                 "currency": "CNY",
                 "exchange": self._detect_exchange(),
             }
+            
+            # Add timestamp for freshness tracking
+            from datetime import datetime
+            data["data_timestamp"] = datetime.now().isoformat()
 
             missing = [k for k, v in data.items() if v is None or v == 0]
+            
+            # Add warning if price is 0
+            if current_price == 0:
+                missing.append("current_price (may be non-trading hours)")
 
             return FetchResult(
                 success=True,
@@ -86,10 +99,9 @@ class AKShareFetcher(BaseFetcher):
                 success=False,
                 data={},
                 source=self.source_name,
-                errors=[str(e)],
+                errors=[f"Failed to fetch quote: {str(e)}"],
                 missing_fields=[],
             )
-
     def fetch_fundamentals(self, ticker: str) -> FetchResult:
         try:
             ak = self._get_akshare()
@@ -119,57 +131,91 @@ class AKShareFetcher(BaseFetcher):
                 "pe_ratio": 0,
                 "pb_ratio": 0,
                 "shareholder_equity": 0,
+                "fundamental_report_date": None,  # Track report date for freshness
             }
-
             try:
                 balance = ak.stock_financial_report_sina(stock=self._ticker, symbol="资产负债表")
                 if balance is not None and not balance.empty:
                     latest = balance.iloc[0]
+                    
+                    # Extract report date for freshness tracking
+                    if '报告日' in balance.columns:
+                        report_date_str = str(latest.get('报告日', ''))
+                        # Parse YYYYMMDD format
+                        if len(report_date_str) == 8 and report_date_str.isdigit():
+                            try:
+                                from datetime import datetime
+                                data["fundamental_report_date"] = datetime.strptime(report_date_str, "%Y%m%d").date()
+                            except:
+                                pass
+                    
+                    # Process columns in order of specificity (more specific first)
                     for col in balance.columns:
                         col_str = str(col)
-                        if '资产总计' in col_str or '资产合计' in col_str:
-                            data["total_assets"] = self._parse_value(latest.get(col, 0))
-                        elif '流动资产合计' in col_str or ('流动资产' in col_str and '合计' in col_str):
+                    for col in balance.columns:
+                        col_str = str(col)
+                        # Match current assets first (before total assets)
+                        if col_str == '流动资产合计':
                             data["current_assets"] = self._parse_value(latest.get(col, 0))
-                        elif '流动负债合计' in col_str or ('流动负债' in col_str and '合计' in col_str):
+                        # Match current liabilities
+                        elif col_str == '流动负债合计':
                             current_liabilities = self._parse_value(latest.get(col, 0))
-                            data["net_working_capital"] = data.get("current_assets", 0) - current_liabilities
-                        elif '负债合计' in col_str or '负债总计' in col_str:
+                            if data.get("current_assets", 0) > 0:
+                                data["net_working_capital"] = data["current_assets"] - current_liabilities
+                        # Match total liabilities
+                        elif col_str == '负债合计':
                             data["total_liabilities"] = self._parse_value(latest.get(col, 0))
+                        # Match shareholder equity (handle both normal companies and banks)
                         elif '归属于母公司股东' in col_str and '权益' in col_str:
+                            # Match both "归属于母公司股东权益合计" and "归属于母公司股东的权益"
                             data["shareholder_equity"] = self._parse_value(latest.get(col, 0))
-                        elif '固定资产' in col_str and '净' in col_str:
-                            data["net_fixed_assets"] = self._parse_value(latest.get(col, 0))
-                        elif '固定资产' in col_str and '合计' in col_str:
+                        # Match total assets (must check exact match to avoid matching 流动资产合计)
+                        elif col_str == '资产总计':
+                            data["total_assets"] = self._parse_value(latest.get(col, 0))
+                        # Match net fixed assets
+                        elif '固定资产净额' in col_str or (col_str == '固定资产合计'):
                             if data["net_fixed_assets"] == 0:
                                 data["net_fixed_assets"] = self._parse_value(latest.get(col, 0))
             except Exception:
                 pass
-
+            # Initialize variables for tax rate calculation
+            profit_before_tax = 0
+            income_tax = 0
+            
             try:
                 income = ak.stock_financial_report_sina(stock=self._ticker, symbol="利润表")
                 if income is not None and not income.empty:
                     latest = income.iloc[0]
+                    
+                    # Process in order of specificity
                     for col in income.columns:
                         col_str = str(col)
-                        if '营业收入' in col_str and '净' not in col_str:
-                            data["revenue"] = self._parse_value(latest.get(col, 0))
-                        elif col_str == '净利润' or ('净利润' in col_str and '归属' in col_str):
+                        # Match revenue (avoid matching 营业收入净额 if exists)
+                        if col_str == '营业收入' or (col_str == '营业总收入'):
+                            if data["revenue"] == 0:
+                                data["revenue"] = self._parse_value(latest.get(col, 0))
+                        # Match net income (prefer consolidated net income)
+                        elif '归属于母公司所有者的净利润' in col_str:
                             data["net_income"] = self._parse_value(latest.get(col, 0))
+                        elif col_str == '净利润' and data["net_income"] == 0:
+                            data["net_income"] = self._parse_value(latest.get(col, 0))
+                        # Match EPS
                         elif '基本每股收益' in col_str:
                             data["eps"] = self._parse_value(latest.get(col, 0))
-                        elif '营业利润' in col_str:
+                        # Match operating profit
+                        elif col_str == '营业利润':
                             data["ebit"] = self._parse_value(latest.get(col, 0))
-                        elif '利润总额' in col_str or '所得税' in col_str:
-                            profit_before_tax = self._parse_value(latest.get(col, 0)) if '利润总额' in col_str else 0
-                            income_tax = 0
-                            if '所得税费用' in col_str:
-                                income_tax = self._parse_value(latest.get(col, 0))
-                            if profit_before_tax > 0 and income_tax >= 0:
-                                data["tax_rate"] = (income_tax / profit_before_tax) * 100
+                        # Match tax rate components
+                        elif col_str == '利润总额':
+                            profit_before_tax = self._parse_value(latest.get(col, 0))
+                        elif col_str == '所得税费用':
+                            income_tax = self._parse_value(latest.get(col, 0))
             except Exception:
                 pass
-
+            
+            # Calculate tax rate if we have both values
+            if profit_before_tax > 0 and income_tax >= 0:
+                data["tax_rate"] = (income_tax / profit_before_tax) * 100
             try:
                 cashflow = ak.stock_financial_report_sina(stock=self._ticker, symbol="现金流量表")
                 if cashflow is not None and not cashflow.empty:
@@ -260,6 +306,9 @@ class AKShareFetcher(BaseFetcher):
 
         combined = {**fundamentals.data, **quote.data}
         
+        # Preserve data timestamp from quote
+        data_timestamp = quote.data.get('data_timestamp')
+        
         shares = combined.get("shares_outstanding", 0)
         if shares > 0 and combined.get("shareholder_equity", 0) > 0:
             combined["bvps"] = combined["shareholder_equity"] / shares
@@ -276,6 +325,10 @@ class AKShareFetcher(BaseFetcher):
             combined["net_debt"] = combined.get("total_liabilities", 0) - combined.get("current_assets", 0) * 0.5
             combined["enterprise_value"] = combined["market_cap"] + combined["net_debt"]
         
+        # Add data timestamp back if available
+        if data_timestamp:
+            combined['data_timestamp'] = data_timestamp
+        
         missing = [k for k, v in combined.items() if v is None or v == 0]
 
         return FetchResult(
@@ -285,7 +338,6 @@ class AKShareFetcher(BaseFetcher):
             errors=quote.errors + fundamentals.errors,
             missing_fields=missing,
         )
-
     def fetch_history(
         self,
         ticker: str,
@@ -303,8 +355,21 @@ class AKShareFetcher(BaseFetcher):
                 end_dt = datetime.strptime(end_date, "%Y-%m-%d")
 
             if start_date is None:
-                years = int(period.replace("y", "").replace("Y", ""))
-                start_dt = end_dt - timedelta(days=years * 365)
+                # Parse period string (supports: 5y, 3Y, 30d, 5D, 6m, 1M)
+                period_lower = period.lower()
+                if period_lower.endswith('y'):
+                    years = int(period_lower.replace('y', ''))
+                    start_dt = end_dt - timedelta(days=years * 365)
+                elif period_lower.endswith('m'):
+                    months = int(period_lower.replace('m', ''))
+                    start_dt = end_dt - timedelta(days=months * 30)
+                elif period_lower.endswith('d'):
+                    days = int(period_lower.replace('d', ''))
+                    start_dt = end_dt - timedelta(days=days)
+                else:
+                    # Default to years for backward compatibility
+                    years = int(period_lower)
+                    start_dt = end_dt - timedelta(days=years * 365)
             else:
                 start_dt = datetime.strptime(start_date, "%Y-%m-%d")
 

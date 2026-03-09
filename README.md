@@ -2,6 +2,14 @@
 
 A modular Python library for comprehensive stock valuation using multiple methodologies with real-time data fetching and news sentiment analysis.
 
+## ✨ Recent Updates
+
+**2026-03-09**: Fixed A-share data fetching issues and added data freshness checking
+- Fixed column name matching, bank stock support, and flexible period formats
+- Added differentiated freshness checks (price: strict, fundamentals: tolerant)
+- See [CHANGELOG.md](CHANGELOG.md) for detailed changes
+
+## Features
 ## Features
 
 - **Real-time Data Fetching**: A-shares (AKShare), US stocks (yfinance), optional Tushare
@@ -675,6 +683,11 @@ python scripts/stock_analyzer.py 601919 --cyclical --cycle-type SHIPPING
 # With news analysis
 python scripts/stock_analyzer.py 601919 --cyclical --news
 ```
+
+### Example Analyses
+
+- **中远海控 (601919)**: Shipping cyclical - see `scripts/analyze_cyclical_stock.py`
+- **云天化 (600096)**: Phosphorus chemical cyclical - see `scripts/analyze_600096.py` and report at `reports/600096/2026-03-09_600096_analysis.md`
 
 ---
 

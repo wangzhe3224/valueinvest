@@ -242,8 +242,39 @@ class Stock:
         if not result.success:
             raise ValueError(f"Failed to fetch {ticker}: {result.errors}")
 
-        return cls.from_dict(result.data)
-
+        stock = cls.from_dict(result.data)
+        
+        # Check data freshness with differentiated checks
+        market = "A-share" if ticker.isdigit() else "US"
+        
+        # Check price data freshness (tolerant: today or yesterday)
+        if 'data_timestamp' in result.data:
+            from .data.freshness import check_price_data_freshness, format_price_freshness_warning
+            
+            status, days_old, message = check_price_data_freshness(
+                result.data['data_timestamp'],
+                market=market
+            )
+            
+            # Print warning for stale/old price data
+            if status in ("stale", "old"):
+                warning = format_price_freshness_warning(status, days_old, ticker)
+                print(warning)
+        
+        # Check fundamental data freshness (tolerant: up to 6 months)
+        if 'fundamental_report_date' in result.data and result.data['fundamental_report_date']:
+            from .data.freshness import check_fundamental_data_freshness, format_fundamental_freshness_warning
+            
+            status, months_old, message = check_fundamental_data_freshness(
+                result.data['fundamental_report_date']
+            )
+            
+            # Print warning for old fundamental data
+            if status in ("stale", "old"):
+                warning = format_fundamental_freshness_warning(status, months_old, ticker)
+                print(warning)
+        
+        return stock
     @classmethod
     def fetch_price_history(
         cls,
@@ -282,6 +313,35 @@ class Stock:
 
     @classmethod
     def from_dict(cls, data: dict) -> "Stock":
+        # Extract extra fields that don't map to Stock attributes
+        extra_fields = {}
+        reserved_fields = {
+            'ticker', 'name', 'current_price', 'shares_outstanding',
+            'eps', 'bvps', 'revenue', 'net_income', 'fcf',
+            'current_assets', 'total_liabilities', 'total_assets', 'net_debt',
+            'short_term_debt', 'long_term_debt', 'interest_expense',
+            'accounts_receivable', 'inventory', 'accounts_payable',
+            'historical_pe', 'historical_pb',
+            'sbc', 'shares_issued', 'shares_repurchased',
+            'depreciation', 'capex', 'net_working_capital', 'net_fixed_assets',
+            'ebit', 'ebitda', 'retained_earnings',
+            'operating_margin', 'tax_rate', 'roe',
+            'growth_rate', 'dividend_per_share', 'dividend_yield', 'dividend_growth_rate',
+            'china_10y_yield', 'aaa_corporate_yield', 'cost_of_capital',
+            'discount_rate', 'terminal_growth',
+            'growth_rate_1_5', 'growth_rate_6_10',
+            'npl_ratio', 'provision_coverage', 'capital_adequacy_ratio',
+            'sectors', 'exchange', 'currency',
+            'prior_roa', 'prior_debt_ratio', 'prior_current_ratio',
+            'prior_shares_outstanding', 'prior_gross_margin', 'prior_asset_turnover',
+            'pe_ratio', 'pb_ratio', 'shareholder_equity', 'market_cap', 'enterprise_value',
+        }
+        
+        # Store non-reserved fields in extra
+        for key, value in data.items():
+            if key not in reserved_fields and value is not None:
+                extra_fields[key] = value
+        
         return cls(
             ticker=data.get("ticker", ""),
             name=data.get("name", ""),
@@ -341,9 +401,8 @@ class Stock:
             prior_shares_outstanding=data.get("prior_shares_outstanding", 0.0),
             prior_gross_margin=data.get("prior_gross_margin", 0.0),
             prior_asset_turnover=data.get("prior_asset_turnover", 0.0),
-            extra=data.get("extra", {}),
+            extra=extra_fields,
         )
-    
     def to_dict(self) -> dict:
         return {
             "ticker": self.ticker,
