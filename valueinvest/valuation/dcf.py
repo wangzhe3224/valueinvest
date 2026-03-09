@@ -46,10 +46,34 @@ class DCF(BaseValuation):
         shares = stock.shares_outstanding
         net_debt = stock.net_debt
         
-        g1 = (self.growth_1_5 if self.growth_1_5 is not None else stock.growth_rate_1_5) / 100
-        g2 = (self.growth_6_10 if self.growth_6_10 is not None else stock.growth_rate_6_10) / 100
-        g_term = (self.terminal_growth if self.terminal_growth is not None else stock.terminal_growth) / 100
-        r = (self.discount_rate if self.discount_rate is not None else stock.discount_rate) / 100
+        # Get growth rates with None checks
+        g1_val = self.growth_1_5 if self.growth_1_5 is not None else getattr(stock, 'growth_rate_1_5', None)
+        g2_val = self.growth_6_10 if self.growth_6_10 is not None else getattr(stock, 'growth_rate_6_10', None)
+        g_term_val = self.terminal_growth if self.terminal_growth is not None else getattr(stock, 'terminal_growth', None)
+        r_val = self.discount_rate if self.discount_rate is not None else getattr(stock, 'discount_rate', None)
+        
+        # Validate all required parameters
+        missing_params = []
+        if g1_val is None:
+            missing_params.append("growth_rate_1_5")
+        if g2_val is None:
+            missing_params.append("growth_rate_6_10")
+        if g_term_val is None:
+            missing_params.append("terminal_growth")
+        if r_val is None:
+            missing_params.append("discount_rate")
+        
+        if missing_params:
+            return self._create_error_result(
+                stock, 
+                f"Missing required parameters: {', '.join(missing_params)}",
+                missing_params
+            )
+        
+        g1 = g1_val / 100
+        g2 = g2_val / 100
+        g_term = g_term_val / 100
+        r = r_val / 100
         
         if r <= g_term:
             return self._create_error_result(
@@ -178,8 +202,26 @@ class ReverseDCF(BaseValuation):
         fcf = stock.fcf
         shares = stock.shares_outstanding
         net_debt = stock.net_debt
-        g_term = stock.terminal_growth / 100
-        r = stock.discount_rate / 100
+        # Get parameters with None checks
+        g_term_val = getattr(stock, 'terminal_growth', None)
+        r_val = getattr(stock, 'discount_rate', None)
+        
+        # Validate required parameters
+        missing_params = []
+        if g_term_val is None:
+            missing_params.append("terminal_growth")
+        if r_val is None:
+            missing_params.append("discount_rate")
+        
+        if missing_params:
+            return self._create_error_result(
+                stock,
+                f"Missing required parameters: {', '.join(missing_params)}",
+                missing_params
+            )
+        
+        g_term = g_term_val / 100
+        r = r_val / 100
         
         if fcf <= 0:
             return self._create_error_result(stock, "Free Cash Flow must be positive", ["fcf"])

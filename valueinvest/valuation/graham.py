@@ -83,8 +83,13 @@ class GrahamFormula(BaseValuation):
             return self._create_error_result(stock, f"Missing required data: {', '.join(missing)}", missing)
         
         eps = stock.eps
-        growth_rate = stock.growth_rate
+        growth_rate = getattr(stock, 'growth_rate', None)
         aaa_yield = stock.aaa_corporate_yield
+        
+        # Handle None growth_rate with default value
+        if growth_rate is None:
+            growth_rate = 0  # Default to 0% growth if not provided
+            warnings.append("Growth rate not provided - defaulting to 0%")
         
         original_growth = growth_rate
         if growth_rate < self.MIN_GROWTH:

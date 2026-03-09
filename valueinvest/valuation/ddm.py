@@ -29,8 +29,27 @@ class DDM(BaseValuation):
             return self._create_error_result(stock, f"Missing required data: {', '.join(missing)}", missing)
         
         dividend = stock.dividend_per_share
-        g = stock.dividend_growth_rate / 100
-        r = (self.required_return if self.required_return is not None else stock.cost_of_capital) / 100
+        # Get parameters with None checks
+        dividend_growth_val = getattr(stock, 'dividend_growth_rate', None)
+        r_val = (self.required_return if self.required_return is not None 
+                 else getattr(stock, 'cost_of_capital', None))
+        
+        # Validate required parameters
+        missing_params = []
+        if dividend_growth_val is None:
+            missing_params.append("dividend_growth_rate")
+        if r_val is None:
+            missing_params.append("cost_of_capital")
+        
+        if missing_params:
+            return self._create_error_result(
+                stock,
+                f"Missing required parameters: {', '.join(missing_params)}",
+                missing_params
+            )
+        
+        g = dividend_growth_val / 100
+        r = r_val / 100
         
         if dividend <= 0:
             return self._create_error_result(stock, "Dividend must be positive for DDM", ["dividend_per_share"])
@@ -135,9 +154,20 @@ class TwoStageDDM(BaseValuation):
             return self._create_error_result(stock, f"Missing required data: {', '.join(missing)}", missing)
         
         current_dividend = stock.dividend_per_share
+        # Get required return with None check
+        r_val = (self.required_return if self.required_return is not None 
+                 else getattr(stock, 'cost_of_capital', None))
+        
+        if r_val is None:
+            return self._create_error_result(
+                stock,
+                "Missing required parameter: cost_of_capital",
+                ["cost_of_capital"]
+            )
+        
+        r = r_val / 100
         g1 = self.growth_stage1 / 100
         g2 = self.growth_stage2 / 100
-        r = (self.required_return if self.required_return is not None else stock.cost_of_capital) / 100
         
         if current_dividend <= 0:
             return self._create_error_result(stock, "Dividend must be positive", ["dividend_per_share"])
