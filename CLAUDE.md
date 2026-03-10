@@ -8,6 +8,8 @@ changelog should be concise and short.
 
 测试运行代码使用本地的 `.venv`
 
+Do not create scripts file just for analysis 1 stock, just use bash or /tmp to store temp analysis py files or data
+
 ## 报告规则
 
 运行代码中生成报告过程中，如果出现问题，及时修复源代码。
