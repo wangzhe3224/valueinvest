@@ -41,7 +41,10 @@ pip install -e ".[fetch]"      # All data sources
 pip install -e ".[us]"         # US stocks only (yfinance)
 pip install -e ".[ashare]"     # A-shares only (AKShare, free)
 pip install -e ".[tushare]"    # A-shares with Tushare (requires token)
-```
+pip install -e ".[learn]"      # Jupyter notebooks + visualization
+
+# For learning notebooks (recommended)
+pip install -e ".[learn,fetch]"  # Learning + all data sources
 
 ## Quick Start
 

@@ -32,6 +32,13 @@ ashare = ["akshare>=1.10.0", "pandas>=2.0.0"]
 tushare = ["tushare>=1.3.0", "pandas>=2.0.0"]
 fetch = ["yfinance>=0.2.0", "akshare>=1.10.0", "pandas>=2.0.0", "requests-cache>=1.0.0"]
 dev = ["pytest>=7.0.0", "mypy>=1.0.0", "ruff>=0.1.0"]
+learn = [
+    "matplotlib>=3.5.0",
+    "seaborn>=0.12.0",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.0.0",
+]
+
 all = [
     "yfinance>=0.2.0",
     "akshare>=1.10.0",
@@ -41,6 +48,10 @@ all = [
     "pytest>=7.0.0",
     "mypy>=1.0.0",
     "ruff>=0.1.0",
+    "matplotlib>=3.5.0",
+    "seaborn>=0.12.0",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.0.0",
 ]
 
 [project.urls]

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.2] - 2026-03-12
+
+### Added
+- Learning notebooks: Added `learn/` folder with DCF valuation tutorial
+  - Interactive Jupyter notebook for learning DCF basics
+  - Real data examples (AAPL, 600887)
+  - Sensitivity analysis and visualization
+  - Reverse DCF for market expectations
+
+
 ## [1.0.1] - 2026-03-09
 
 ### Fixed
