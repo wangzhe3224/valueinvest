@@ -819,20 +819,38 @@ class ValueTrapDetector(BaseValuation):
         # FCF coverage check
         if stock.fcf > 0 and stock.dividend_per_share > 0:
             total_dividend = stock.dividend_per_share * stock.shares_outstanding
-            fcf_coverage = stock.fcf / total_dividend if total_dividend > 0 else 0
+
+            # For high-SBC companies, use True FCF (FCF - SBC)
+            # SBC is a real economic cost even if non-cash
+            sbc_ratio = (stock.sbc / stock.fcf) if stock.fcf > 0 else 0
+            use_true_fcf = sbc_ratio > 0.3  # If SBC > 30% of FCF, use True FCF
+
+            if use_true_fcf:
+                true_fcf = stock.true_fcf  # FCF - SBC
+                fcf_for_coverage = true_fcf if true_fcf > 0 else 0
+                fcf_type = "True FCF"
+            else:
+                fcf_for_coverage = stock.fcf
+                fcf_type = "FCF"
+
+            fcf_coverage = fcf_for_coverage / total_dividend if total_dividend > 0 else 0
 
             if fcf_coverage < 1.0:
                 risk = 85
-                desc = f"FCF cannot cover dividend (coverage: {fcf_coverage:.1f}x)"
+                desc = f"{fcf_type} cannot cover dividend (coverage: {fcf_coverage:.1f}x)"
                 is_critical = True
             elif fcf_coverage < 1.5:
                 risk = 50
-                desc = f"Low FCF coverage: {fcf_coverage:.1f}x"
+                desc = f"Low {fcf_type} coverage: {fcf_coverage:.1f}x"
                 is_critical = False
             else:
                 risk = 15
-                desc = f"Healthy FCF coverage: {fcf_coverage:.1f}x"
+                desc = f"Healthy {fcf_type} coverage: {fcf_coverage:.1f}x"
                 is_critical = False
+
+            # Add note if using True FCF
+            if use_true_fcf and sbc_ratio > 0.5:
+                desc += f" (SBC is {sbc_ratio:.0%} of FCF)"
 
             indicators.append(
                 TrapIndicator(

@@ -23,7 +23,9 @@ class StockHistory:
     adjust_type: str = "qfq"
 
     @classmethod
-    def from_history_result(cls, result: "HistoryResult", result_hfq: Optional["HistoryResult"] = None) -> "StockHistory":
+    def from_history_result(
+        cls, result: "HistoryResult", result_hfq: Optional["HistoryResult"] = None
+    ) -> "StockHistory":
         history = cls(
             ticker=result.ticker,
             df=result.df,
@@ -34,41 +36,43 @@ class StockHistory:
             max_drawdown=result.calculate_max_drawdown(),
             prices=result.prices,
         )
-        
+
         if result_hfq and result_hfq.df is not None:
             history.df_hfq = result_hfq.df
             history.prices_hfq = result_hfq.prices
             history.cagr_hfq = result_hfq.calculate_cagr()
-        
+
         return history
 
     def get_recent_prices(self, days: int = 30, adjust: str = "qfq") -> List[dict]:
         df = self.df_hfq if adjust == "hfq" else self.df
         if df is None or df.empty:
             return []
-        
+
         recent = df.tail(days)
         result = []
         for idx, row in recent.iterrows():
             date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)
-            result.append({
-                "date": date_str,
-                "open": float(row["open"]),
-                "high": float(row["high"]),
-                "low": float(row["low"]),
-                "close": float(row["close"]),
-                "volume": int(row["volume"]) if row["volume"] else 0,
-            })
+            result.append(
+                {
+                    "date": date_str,
+                    "open": float(row["open"]),
+                    "high": float(row["high"]),
+                    "low": float(row["low"]),
+                    "close": float(row["close"]),
+                    "volume": int(row["volume"]) if row["volume"] else 0,
+                }
+            )
         return result
 
     def get_price_stats(self, days: int = 30, adjust: str = "qfq") -> dict:
         df = self.df_hfq if adjust == "hfq" else self.df
         if df is None or df.empty:
             return {}
-        
+
         recent = df.tail(days)
         closes = recent["close"]
-        
+
         return {
             "period_days": len(recent),
             "high": float(closes.max()),
@@ -85,35 +89,35 @@ class Stock:
     name: str = ""
     current_price: float = 0.0
     shares_outstanding: float = 0.0
-    
+
     eps: float = 0.0
     bvps: float = 0.0
     revenue: float = 0.0
     net_income: float = 0.0
     fcf: float = 0.0
-    
+
     current_assets: float = 0.0
     total_liabilities: float = 0.0
     total_assets: float = 0.0
     net_debt: float = 0.0
-    
+
     # Debt structure details (for accurate EV, ROIC, interest coverage)
     short_term_debt: float = 0.0
     long_term_debt: float = 0.0
     interest_expense: float = 0.0
-    
+
     # Working capital components (for Owner Earnings accuracy)
     accounts_receivable: float = 0.0
     inventory: float = 0.0
     accounts_payable: float = 0.0
-    
+
     # Historical multiples (for relative valuation)
     historical_pe: List[float] = field(default_factory=list)
     historical_pb: List[float] = field(default_factory=list)
     # SBC (Stock-Based Compensation) related fields
-    sbc: float = 0.0                    # Stock-Based Compensation (annual)
-    shares_issued: float = 0.0          # Shares issued from SBC/options (annual)
-    shares_repurchased: float = 0.0     # Shares repurchased (annual)
+    sbc: float = 0.0  # Stock-Based Compensation (annual)
+    shares_issued: float = 0.0  # Shares issued from SBC/options (annual)
+    shares_repurchased: float = 0.0  # Shares repurchased (annual)
     depreciation: float = 0.0
     capex: float = 0.0
     net_working_capital: float = 0.0
@@ -121,33 +125,33 @@ class Stock:
     ebit: float = 0.0
     ebitda: float = 0.0
     retained_earnings: float = 0.0
-    
+
     operating_margin: float = 0.0
     tax_rate: float = 0.0
     roe: float = 0.0
-    
+
     growth_rate: float = 0.0
     dividend_per_share: float = 0.0
     dividend_yield: float = 0.0
     dividend_growth_rate: float = 0.0
-    
+
     china_10y_yield: float = 1.80
     aaa_corporate_yield: float = 2.28
     cost_of_capital: float = 10.0
     discount_rate: float = 10.0
     terminal_growth: float = 2.0
-    
+
     growth_rate_1_5: float = 5.0
     growth_rate_6_10: float = 3.0
-    
+
     npl_ratio: float = 0.0
     provision_coverage: float = 0.0
     capital_adequacy_ratio: float = 0.0
-    
+
     sectors: list = field(default_factory=list)
     exchange: str = "SH"
     currency: str = "CNY"
-    
+
     # Prior year data for F-Score and trend analysis
     prior_roa: float = 0.0
     prior_debt_ratio: float = 0.0
@@ -155,77 +159,90 @@ class Stock:
     prior_shares_outstanding: float = 0.0
     prior_gross_margin: float = 0.0
     prior_asset_turnover: float = 0.0
-    
+
     extra: Dict[str, Any] = field(default_factory=dict)
-    
+
     @property
     def pe_ratio(self) -> float:
         return self.current_price / self.eps if self.eps > 0 else 0
-    
+
     @property
     def pb_ratio(self) -> float:
         return self.current_price / self.bvps if self.bvps > 0 else 0
-    
+
     @property
     def market_cap(self) -> float:
         return self.current_price * self.shares_outstanding
-    
+
     @property
     def enterprise_value(self) -> float:
         return self.market_cap + self.net_debt
-    
+
     @property
     def payout_ratio(self) -> float:
         return (self.dividend_per_share / self.eps * 100) if self.eps > 0 else 0
-    
+
+    @property
+    def true_fcf_payout_ratio(self) -> float:
+        total_dividend = self.dividend_per_share * self.shares_outstanding
+        return (total_dividend / self.true_fcf * 100) if self.true_fcf > 0 else 0
+
     @property
     def fcf_per_share(self) -> float:
         return self.fcf / self.shares_outstanding if self.shares_outstanding > 0 else 0
-    
+
     # === SBC Related Properties ===
-    
+
     @property
     def sbc_margin(self) -> float:
         """SBC as percentage of revenue"""
         return (self.sbc / self.revenue * 100) if self.revenue > 0 else 0
-    
+
     @property
     def sbc_as_pct_of_fcf(self) -> float:
         """SBC as percentage of FCF"""
         return (self.sbc / self.fcf * 100) if self.fcf > 0 else 0
-    
+
     @property
     def true_fcf(self) -> float:
         """SBC-adjusted true FCF"""
         return self.fcf - self.sbc
-    
+
     @property
     def true_fcf_per_share(self) -> float:
         """SBC-adjusted FCF per share"""
         return self.true_fcf / self.shares_outstanding if self.shares_outstanding > 0 else 0
-    
+
     @property
     def dilution_rate(self) -> float:
         """Annual dilution rate from share issuance"""
-        return (self.shares_issued / self.shares_outstanding * 100) if self.shares_outstanding > 0 else 0
-    
+        return (
+            (self.shares_issued / self.shares_outstanding * 100)
+            if self.shares_outstanding > 0
+            else 0
+        )
+
     @property
     def buyback_yield(self) -> float:
         """Gross buyback yield"""
-        return (self.shares_repurchased * self.current_price / self.market_cap * 100) if self.market_cap > 0 and self.shares_repurchased > 0 else 0
-    
+        return (
+            (self.shares_repurchased * self.current_price / self.market_cap * 100)
+            if self.market_cap > 0 and self.shares_repurchased > 0
+            else 0
+        )
+
     @property
     def true_buyback_yield(self) -> float:
         """True buyback yield (net of dilution)"""
         if self.shares_outstanding <= 0 or self.market_cap <= 0:
             return 0
         net_reduction = self.shares_repurchased - self.shares_issued
-        return (net_reduction * self.current_price / self.market_cap * 100)
-    
+        return net_reduction * self.current_price / self.market_cap * 100
+
     def shareholder_yield(self) -> float:
         """Total shareholder yield (dividend + true buyback yield)"""
         return self.dividend_yield + self.true_buyback_yield
-    
+
     @classmethod
     def from_api(
         cls,
@@ -243,38 +260,41 @@ class Stock:
             raise ValueError(f"Failed to fetch {ticker}: {result.errors}")
 
         stock = cls.from_dict(result.data)
-        
+
         # Check data freshness with differentiated checks
         market = "A-share" if ticker.isdigit() else "US"
-        
+
         # Check price data freshness (tolerant: today or yesterday)
-        if 'data_timestamp' in result.data:
+        if "data_timestamp" in result.data:
             from .data.freshness import check_price_data_freshness, format_price_freshness_warning
-            
+
             status, days_old, message = check_price_data_freshness(
-                result.data['data_timestamp'],
-                market=market
+                result.data["data_timestamp"], market=market
             )
-            
+
             # Print warning for stale/old price data
             if status in ("stale", "old"):
                 warning = format_price_freshness_warning(status, days_old, ticker)
                 print(warning)
-        
+
         # Check fundamental data freshness (tolerant: up to 6 months)
-        if 'fundamental_report_date' in result.data and result.data['fundamental_report_date']:
-            from .data.freshness import check_fundamental_data_freshness, format_fundamental_freshness_warning
-            
-            status, months_old, message = check_fundamental_data_freshness(
-                result.data['fundamental_report_date']
+        if "fundamental_report_date" in result.data and result.data["fundamental_report_date"]:
+            from .data.freshness import (
+                check_fundamental_data_freshness,
+                format_fundamental_freshness_warning,
             )
-            
+
+            status, months_old, message = check_fundamental_data_freshness(
+                result.data["fundamental_report_date"]
+            )
+
             # Print warning for old fundamental data
             if status in ("stale", "old"):
                 warning = format_fundamental_freshness_warning(status, months_old, ticker)
                 print(warning)
-        
+
         return stock
+
     @classmethod
     def fetch_price_history(
         cls,
@@ -290,7 +310,7 @@ class Stock:
         from .data.fetcher import get_fetcher
 
         fetcher = fetcher or get_fetcher(ticker, source, tushare_token)
-        
+
         qfq_result = fetcher.fetch_history(
             ticker,
             start_date=start_date,
@@ -298,7 +318,7 @@ class Stock:
             period=period,
             adjust="qfq",
         )
-        
+
         hfq_result = None
         if include_hfq:
             hfq_result = fetcher.fetch_history(
@@ -308,7 +328,7 @@ class Stock:
                 period=period,
                 adjust="hfq",
             )
-        
+
         return StockHistory.from_history_result(qfq_result, hfq_result)
 
     @classmethod
@@ -316,32 +336,75 @@ class Stock:
         # Extract extra fields that don't map to Stock attributes
         extra_fields = {}
         reserved_fields = {
-            'ticker', 'name', 'current_price', 'shares_outstanding',
-            'eps', 'bvps', 'revenue', 'net_income', 'fcf',
-            'current_assets', 'total_liabilities', 'total_assets', 'net_debt',
-            'short_term_debt', 'long_term_debt', 'interest_expense',
-            'accounts_receivable', 'inventory', 'accounts_payable',
-            'historical_pe', 'historical_pb',
-            'sbc', 'shares_issued', 'shares_repurchased',
-            'depreciation', 'capex', 'net_working_capital', 'net_fixed_assets',
-            'ebit', 'ebitda', 'retained_earnings',
-            'operating_margin', 'tax_rate', 'roe',
-            'growth_rate', 'dividend_per_share', 'dividend_yield', 'dividend_growth_rate',
-            'china_10y_yield', 'aaa_corporate_yield', 'cost_of_capital',
-            'discount_rate', 'terminal_growth',
-            'growth_rate_1_5', 'growth_rate_6_10',
-            'npl_ratio', 'provision_coverage', 'capital_adequacy_ratio',
-            'sectors', 'exchange', 'currency',
-            'prior_roa', 'prior_debt_ratio', 'prior_current_ratio',
-            'prior_shares_outstanding', 'prior_gross_margin', 'prior_asset_turnover',
-            'pe_ratio', 'pb_ratio', 'shareholder_equity', 'market_cap', 'enterprise_value',
+            "ticker",
+            "name",
+            "current_price",
+            "shares_outstanding",
+            "eps",
+            "bvps",
+            "revenue",
+            "net_income",
+            "fcf",
+            "current_assets",
+            "total_liabilities",
+            "total_assets",
+            "net_debt",
+            "short_term_debt",
+            "long_term_debt",
+            "interest_expense",
+            "accounts_receivable",
+            "inventory",
+            "accounts_payable",
+            "historical_pe",
+            "historical_pb",
+            "sbc",
+            "shares_issued",
+            "shares_repurchased",
+            "depreciation",
+            "capex",
+            "net_working_capital",
+            "net_fixed_assets",
+            "ebit",
+            "ebitda",
+            "retained_earnings",
+            "operating_margin",
+            "tax_rate",
+            "roe",
+            "growth_rate",
+            "dividend_per_share",
+            "dividend_yield",
+            "dividend_growth_rate",
+            "china_10y_yield",
+            "aaa_corporate_yield",
+            "cost_of_capital",
+            "discount_rate",
+            "terminal_growth",
+            "growth_rate_1_5",
+            "growth_rate_6_10",
+            "npl_ratio",
+            "provision_coverage",
+            "capital_adequacy_ratio",
+            "sectors",
+            "exchange",
+            "currency",
+            "prior_roa",
+            "prior_debt_ratio",
+            "prior_current_ratio",
+            "prior_shares_outstanding",
+            "prior_gross_margin",
+            "prior_asset_turnover",
+            "pe_ratio",
+            "pb_ratio",
+            "shareholder_equity",
+            "market_cap",
+            "enterprise_value",
         }
-        
+
         # Store non-reserved fields in extra
         for key, value in data.items():
             if key not in reserved_fields and value is not None:
                 extra_fields[key] = value
-        
+
         return cls(
             ticker=data.get("ticker", ""),
             name=data.get("name", ""),
@@ -403,6 +466,7 @@ class Stock:
             prior_asset_turnover=data.get("prior_asset_turnover", 0.0),
             extra=extra_fields,
         )
+
     def to_dict(self) -> dict:
         return {
             "ticker": self.ticker,
