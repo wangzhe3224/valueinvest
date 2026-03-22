@@ -60,6 +60,8 @@ def fetch_stock_data(
         "errors": [],
     }
 
+    history = None
+
     # 1. Fetch basic stock data
     try:
         fetcher = get_fetcher(ticker)
@@ -197,9 +199,12 @@ def fetch_stock_data(
             if not industry:
                 industry = _detect_industry(stock, ticker)
 
+            # Calculate revenue growth proxy
+            revenue_growth_proxy = _calculate_revenue_growth_proxy(history.cagr if history else 0)
+
             trap_result = detect_value_trap(
                 stock,
-                revenue_cagr_5y=history.cagr if history else 0,
+                revenue_cagr_5y=revenue_growth_proxy,
                 margin_trend=margin_trend,
                 roe_trend=roe_trend,
                 industry=industry,
@@ -247,6 +252,22 @@ def fetch_stock_data(
             result["buyback"] = None
 
     return result
+
+
+def _calculate_revenue_growth_proxy(price_cagr: float) -> float:
+    """
+    Calculate revenue growth proxy from price CAGR.
+
+    Uses price CAGR as proxy when historical financial data unavailable.
+    Limitation: Price CAGR may diverge from actual revenue trends.
+
+    Args:
+        price_cagr: Price compound annual growth rate
+
+    Returns:
+        Revenue growth proxy (same as price_cagr for now)
+    """
+    return price_cagr
 
 
 def _detect_industry(stock, ticker: str) -> str:
