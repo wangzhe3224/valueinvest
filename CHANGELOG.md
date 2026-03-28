@@ -4,10 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added
-- **ROIC vs WACC module** (`valueinvest/roic/`): Economic profit analysis with `analyze_economic_profit()`. Supports Simplified and CAPM WACC methods.
-- **Economic Moat module** (`valueinvest/moat/`): Competitive advantage scoring with `analyze_moat()`. 11 signals across 5 categories, composite 0-100 score with moat type classification.
-- **Capital Allocation module** (`valueinvest/capital/`): Management quality scoring with `analyze_capital_allocation()`. 12 signals across 4 categories (dividend, reinvestment, balance sheet, dilution).
+### Fixed
+- **yfinance fetcher**: Compute `net_debt` from balance sheet (`total_debt - cash`) when yfinance `netDebt` is None. Previously defaulted to 0, causing DCF and EV/EBITDA to ignore debt/cash.
+- **yfinance fetcher**: Dividend growth rate now uses last 10 complete years (excludes partial current year) instead of entire history, fixing inflated growth rates (e.g. JNJ showed 10.4% instead of correct 5.6%).
+- **Stock**: Added missing `current_liabilities` field. Previously fetched by yfinance but silently dropped, causing wrong current ratio in Piotroski F-Score.
+- **AAA corporate yield**: Updated default from 2.28% to 5.30% (current Moody's Aaa rate as of March 2026). Previous value caused Graham Formula to massively overestimate fair value.
+- **Currency symbols**: Changed hardcoded ¥ to $ in analysis strings across Graham, DDM, Bank, and Growth modules.
+- **Altman Z-Score**: Fixed NaN handling when `retained_earnings` is missing. Previously NaN propagated to Z-Score causing wrong "High Risk" classification.
+- **Piotroski F-Score**: Use `operating_cash_flow` instead of `fcf` for criteria F2/F4. FCF (= OCF - CapEx) always understates cash generation.
+- **Piotroski F-Score**: Fixed current ratio to use `current_liabilities` instead of `total_liabilities`.
+- **Cyclical methods**: Return clear "Not Applicable" message when called with regular `Stock` instead of crashing with AttributeError.
+- **Bank methods**: Removed Altman Z-Score from BANK_METHODS (formula doesn't work for financial institutions).
+
+## [Unreleased]
+
+
 
 ### Fixed
 - **Moat/Capital engines**: Fixed TypeError when passing optional kwargs to signal functions. Now inspects each function's signature before passing kwargs.

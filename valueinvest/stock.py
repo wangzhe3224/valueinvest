@@ -98,6 +98,7 @@ class Stock:
 
     current_assets: float = 0.0
     total_liabilities: float = 0.0
+    current_liabilities: float = 0.0
     total_assets: float = 0.0
     net_debt: float = 0.0
 
@@ -136,7 +137,7 @@ class Stock:
     dividend_growth_rate: float = 0.0
 
     china_10y_yield: float = 1.80
-    aaa_corporate_yield: float = 2.28
+    aaa_corporate_yield: float = 5.30
     cost_of_capital: float = 10.0
     discount_rate: float = 10.0
     terminal_growth: float = 2.0
@@ -440,6 +441,7 @@ class Stock:
             "fcf",
             "current_assets",
             "total_liabilities",
+            "current_liabilities",
             "total_assets",
             "net_debt",
             "short_term_debt",
@@ -517,6 +519,7 @@ class Stock:
             fcf=data.get("fcf", 0.0),
             current_assets=data.get("current_assets", 0.0),
             total_liabilities=data.get("total_liabilities", 0.0),
+            current_liabilities=data.get("current_liabilities", 0.0),
             total_assets=data.get("total_assets", 0.0),
             net_debt=data.get("net_debt", 0.0),
             short_term_debt=data.get("short_term_debt", 0.0),
@@ -545,7 +548,7 @@ class Stock:
             dividend_yield=data.get("dividend_yield", 0.0),
             dividend_growth_rate=data.get("dividend_growth_rate", 0.0),
             china_10y_yield=data.get("china_10y_yield", 1.80),
-            aaa_corporate_yield=data.get("aaa_corporate_yield", 2.28),
+            aaa_corporate_yield=data.get("aaa_corporate_yield", 5.30),
             cost_of_capital=data.get("cost_of_capital", 10.0),
             discount_rate=data.get("discount_rate", 10.0),
             terminal_growth=data.get("terminal_growth", 2.0),
@@ -616,6 +619,7 @@ class Stock:
                 "long_term_debt": self.long_term_debt,
                 "total_assets": self.total_assets,
                 "total_liabilities": self.total_liabilities,
+                "current_liabilities": self.current_liabilities,
                 "current_assets": self.current_assets,
                 "sector": self.sector,
                 "industry": self.industry,

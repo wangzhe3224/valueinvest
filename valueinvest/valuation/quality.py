@@ -281,7 +281,7 @@ class AltmanZScore(BaseValuation):
 
         # X2: Retained Earnings / Total Assets
         retained_earnings = stock.retained_earnings
-        if retained_earnings == 0:
+        if retained_earnings == 0 or (isinstance(retained_earnings, float) and retained_earnings != retained_earnings):
             # Estimate: Assume 30% of equity is retained earnings
             equity = total_assets - total_liabilities
             retained_earnings = equity * 0.3
@@ -522,10 +522,15 @@ class PiotroskiFScore(BaseValuation):
             criteria_failed.append("F1: ROA > 0")
         
         # F2: Operating Cash Flow > 0
-        # Use FCF as proxy for Operating Cash Flow
-        ocf = stock.fcf if stock.fcf != 0 else stock.net_income * 1.2  # Rough estimate
-        if stock.fcf == 0:
-            warnings.append("FCF not available, using estimated Operating Cash Flow")
+        # Use operating_cash_flow when available; fall back to FCF + CapEx estimate
+        ocf = getattr(stock, 'operating_cash_flow', 0) or 0
+        if ocf == 0 and stock.fcf != 0:
+            capex = getattr(stock, 'capex', 0) or 0
+            ocf = stock.fcf + abs(capex)  # Reconstruct OCF from FCF + CapEx
+            warnings.append("OCF estimated from FCF + CapEx")
+        elif ocf == 0:
+            ocf = stock.net_income * 1.2  # Rough estimate
+            warnings.append("OCF not available, using estimated Operating Cash Flow")
         if ocf > 0:
             profitability_score += 1
             criteria_met.append("F2: OCF > 0")
@@ -564,7 +569,10 @@ class PiotroskiFScore(BaseValuation):
             criteria_skipped.append("F5: Debt ratio decreased (no prior year data)")
         
         # F6: ΔLiquidity (Current ratio increased)
-        current_ratio = stock.current_assets / stock.total_liabilities if stock.total_liabilities > 0 else 0
+        current_liabilities = getattr(stock, 'current_liabilities', 0) or 0
+        if current_liabilities <= 0:
+            current_liabilities = stock.total_liabilities
+        current_ratio = stock.current_assets / current_liabilities if current_liabilities > 0 else 0
         if stock.current_assets == 0:
             current_ratio = 0
             warnings.append("Current assets not available, current ratio set to 0")

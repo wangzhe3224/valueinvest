@@ -132,12 +132,18 @@ class YFinanceFetcher(BaseFetcher):
                     # Get annual dividends by year
                     div_by_year = dividends.groupby(dividends.index.year).sum()
                     if len(div_by_year) >= 2:
-                        years = len(div_by_year) - 1
-                        older_div = float(div_by_year.iloc[0])
-                        newer_div = float(div_by_year.iloc[-1])
-                        if older_div > 0:
-                            growth = ((newer_div / older_div) ** (1 / years) - 1) * 100
-                            data["dividend_growth_rate"] = round(growth, 2)
+                        # Use up to 10 years, excluding current (partial) year
+                        current_year = datetime.now().year
+                        full_years = div_by_year[div_by_year.index < current_year]
+                        if len(full_years) >= 10:
+                            full_years = full_years.iloc[-10:]
+                        if len(full_years) >= 2:
+                            years = len(full_years) - 1
+                            older_div = float(full_years.iloc[0])
+                            newer_div = float(full_years.iloc[-1])
+                            if older_div > 0:
+                                growth = ((newer_div / older_div) ** (1 / years) - 1) * 100
+                                data["dividend_growth_rate"] = round(growth, 2)
             except Exception:
                 pass
 
@@ -156,6 +162,12 @@ class YFinanceFetcher(BaseFetcher):
                         data["depreciation"] = float(financials.loc["Depreciation"].iloc[0])
                     if "Gross Profit" in financials.index:
                         data["gross_profit"] = float(financials.loc["Gross Profit"].iloc[0])
+                    # Compute tax rate from income statement
+                    if "Tax Provision" in financials.index and "Pretax Income" in financials.index:
+                        tax = abs(float(financials.loc["Tax Provision"].iloc[0]))
+                        pretax = float(financials.loc["Pretax Income"].iloc[0])
+                        if pretax > 0 and tax > 0:
+                            data["tax_rate"] = round((tax / pretax) * 100, 2)
             except (KeyError, IndexError, TypeError):
                 pass
 
@@ -239,6 +251,11 @@ class YFinanceFetcher(BaseFetcher):
                         data["shares_repurchased"] = abs(float(cashflow.loc["Repurchase Of Stock"].iloc[0]))
             except (KeyError, IndexError, TypeError):
                 pass
+
+            # Compute net_debt from balance sheet if yfinance doesn't provide it
+            if data.get("net_debt", 0) == 0 and data.get("total_debt", 0) > 0:
+                cash = data.get("cash_and_equivalents", 0) or 0
+                data["net_debt"] = data["total_debt"] - cash
 
             # Compute gross margin
             if "gross_profit" in data and data.get("revenue", 0) > 0:

@@ -139,9 +139,9 @@ class GARP(BaseValuation):
         pv_high = eps * ((1 + g * 1.2) ** self.years) * self.target_pe * 1.1 / ((1 + r) ** self.years)
         
         analysis = [
-            f"Projects EPS to ¥{future_eps:.2f} in {self.years} years at {g*100:.1f}% growth",
-            f"Target exit P/E: {self.target_pe}x → Future price: ¥{future_price:.2f}",
-            f"Present value at {r*100:.0f}% required return: ¥{present_value:.2f}",
+            f"Projects EPS to ${future_eps:.2f} in {self.years} years at {g*100:.1f}% growth",
+            f"Target exit P/E: {self.target_pe}x → Future price: ${future_price:.2f}",
+            f"Present value at {r*100:.0f}% required return: ${present_value:.2f}",
             f"Implied PEG: {peg_implied:.2f}",
         ]
         if warnings:

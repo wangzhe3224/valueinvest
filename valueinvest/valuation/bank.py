@@ -176,9 +176,9 @@ class ResidualIncome(BaseValuation):
         value_from_terminal = terminal_value
         
         analysis = [
-            f"Book Value: ¥{bvps:.2f}",
-            f"PV of Residual Income (Years 1-{self.years}): ¥{total_residual_income:.2f}",
-            f"PV of Terminal Value: ¥{terminal_value:.2f}",
+            f"Book Value: ${bvps:.2f}",
+            f"PV of Residual Income (Years 1-{self.years}): ${total_residual_income:.2f}",
+            f"PV of Terminal Value: ${terminal_value:.2f}",
             terminal_analysis,
         ]
         

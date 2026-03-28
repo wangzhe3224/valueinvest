@@ -49,7 +49,7 @@ class GrahamNumber(BaseValuation):
         
         analysis = [
             f"Graham's formula for defensive investors (P/E × P/B ≤ 22.5)",
-            f"Conservative range: ¥{graham_low:.2f} - ¥{graham_high:.2f}",
+            f"Conservative range: ${graham_low:.2f} - ${graham_high:.2f}",
         ]
         if warnings:
             analysis.extend([f"Warning: {w}" for w in warnings])
@@ -196,7 +196,7 @@ class NCAV(BaseValuation):
             analysis.append("Not a Net-Net candidate")
         elif stock.current_price < buy_target:
             analysis.append(f"*** Net-Net opportunity! Price below {self.safety_margin*100:.0f}% of NCAV ***")
-            analysis.append(f"Buy Target: ¥{buy_target:.2f} (2/3 of NCAV)")
+            analysis.append(f"Buy Target: ${buy_target:.2f} (2/3 of NCAV)")
         elif stock.current_price < ncav_per_share:
             analysis.append(f"Below full NCAV but above {self.safety_margin*100:.0f}% safety margin")
             analysis.append(f"Margin of safety: {((ncav_per_share - stock.current_price) / ncav_per_share * 100):.1f}%")

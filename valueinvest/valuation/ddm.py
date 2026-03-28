@@ -208,8 +208,8 @@ class TwoStageDDM(BaseValuation):
         analysis = [
             f"Stage 1: {g1*100:.1f}% growth for {self.stage1_years} years",
             f"Stage 2: {g2*100:.1f}% perpetual growth (terminal)",
-            f"PV of Stage 1 dividends: ¥{pv_dividends:.2f}",
-            f"PV of Terminal Value: ¥{pv_terminal:.2f} ({terminal_pct:.0f}% of total)",
+            f"PV of Stage 1 dividends: ${pv_dividends:.2f}",
+            f"PV of Terminal Value: ${pv_terminal:.2f} ({terminal_pct:.0f}% of total)",
         ]
         
         if terminal_pct > 70:

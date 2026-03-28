@@ -286,7 +286,7 @@ class BeneishMScore(BaseValuation):
             is_manipulator = False
         elif m_score < self.HIGH_RISK_THRESHOLD:
             manipulation_risk = "Medium"
-            is_manipulator = True
+            is_manipulator = False
         else:
             manipulation_risk = "High"
             is_manipulator = True

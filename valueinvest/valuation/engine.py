@@ -64,7 +64,6 @@ class ValuationEngine:
         "residual_income",
         "ddm",
         "two_stage_ddm",
-        "altman_z",
     ]
 
     DIVIDEND_METHODS = [
@@ -105,6 +104,9 @@ class ValuationEngine:
         "cyclical_dividend",
     ]
 
+    # Methods that require CyclicalStock (not compatible with regular Stock)
+    _CYCLICAL_STOCK_METHODS = set(CYCLICAL_METHODS)
+
     def __init__(self):
         self._methods = {
             "graham_number": GrahamNumber(),
@@ -125,6 +127,7 @@ class ValuationEngine:
             "ev_ebitda": EVEBITDA(),
             "altman_z": AltmanZScore(),
             "sbc_analysis": SBCAnalysis(),
+            "value_trap": ValueTrapDetector(),
             "piotroski_f": PiotroskiFScore(),
             # New Phase 1 methods
             "pe_relative": PERelativeValuation(),
@@ -142,6 +145,22 @@ class ValuationEngine:
     def run_single(self, stock, method: str, **kwargs) -> ValuationResult:
         if method not in self._methods:
             raise ValueError(f"Unknown method: {method}. Available: {list(self._methods.keys())}")
+
+        # Cyclical methods require CyclicalStock, not regular Stock
+        if method in self._CYCLICAL_STOCK_METHODS:
+            from ..cyclical.base import CyclicalStock
+            if not isinstance(stock, CyclicalStock):
+                return ValuationResult(
+                    method=method,
+                    fair_value=0,
+                    current_price=stock.current_price,
+                    premium_discount=0,
+                    assessment="Not Applicable - requires CyclicalStock with cycle data",
+                    missing_fields=[],
+                    confidence="N/A",
+                    applicability="Not Applicable",
+                    details={"note": "Use the cyclical module's engine for cyclical valuation"},
+                )
 
         valuator = self._methods[method]
 
