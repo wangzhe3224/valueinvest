@@ -53,7 +53,7 @@ from .roic.base import EconomicProfitResult
 from .capital.engine import CapitalAllocationEngine
 from .capital.base import CapitalAllocationResult
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 __all__ = [
     # Core

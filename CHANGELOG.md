@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.1.0] - 2026-03-28
 
 ### Added
 - **Historical PE/PB data**: yfinance fetcher now computes 5-year historical PE and PB ratios (avg_price / EPS, avg_price / BVPS) with detailed `historical_pe_data`/`historical_pb_data` dicts for relative valuation.
