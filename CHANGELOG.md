@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **AGENTS.md**: Agent-oriented quick reference with common patterns, decision points, data quality checks, and pitfall warnings
+- **Stock.__repr__()**: Concise one-line string representation for quick debugging
+- **Stock.summary()**: Structured multi-line data summary with data quality hints
+- **Stock.warnings**: Warnings list populated by `from_api()` instead of printing to stdout
+- **Stock.to_dict(full=True)**: Full data export including all financial fields
+- **ValuationResult.to_summary()**: Concise one-line summary for agent consumption
+- **ValuationResult.__str__()**: Multi-line string with details and analysis points
+- **Custom exceptions**: `DataFetchError`, `InsufficientDataError`, `UnsupportedMarketError` in `valueinvest/exceptions.py`
+
+### Improved
+- **ValuationEngine.run_multiple()**: Error results now include exception type name and proper confidence/applicability flags
+- **Stock.from_api()**: Freshness warnings stored in `stock.warnings` instead of printing to stdout
+
 ## [1.0.4] - 2026-03-28
 
 ### Fixed

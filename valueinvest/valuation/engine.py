@@ -239,15 +239,33 @@ class ValuationEngine:
             try:
                 result = self.run_single(stock, method, **kwargs)
                 results.append(result)
-            except Exception as e:
+            except ValueError as e:
                 results.append(
                     ValuationResult(
                         method=method,
                         fair_value=0,
                         current_price=stock.current_price,
                         premium_discount=0,
-                        assessment=f"Error: {str(e)}",
+                        assessment=f"Error: {e}",
                         missing_fields=[],
+                        confidence="N/A",
+                        applicability="Not Applicable",
+                        details={"error_type": "ValueError"},
+                    )
+                )
+            except Exception as e:
+                error_type = type(e).__name__
+                results.append(
+                    ValuationResult(
+                        method=method,
+                        fair_value=0,
+                        current_price=stock.current_price,
+                        premium_discount=0,
+                        assessment=f"Error ({error_type}): {e}",
+                        missing_fields=[],
+                        confidence="N/A",
+                        applicability="Not Applicable",
+                        details={"error_type": error_type},
                     )
                 )
 

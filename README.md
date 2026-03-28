@@ -774,6 +774,7 @@ Automatic classification based on ticker and financials:
 
 ```
 valueinvest/
+├── exceptions.py            # Custom exceptions (DataFetchError, etc.)
 ├── stock.py                 # Stock dataclass, StockHistory
 ├── valuation/
 │   ├── base.py              # Base classes
@@ -846,6 +847,7 @@ valueinvest/
     └── enhanced_reporter.py # Enhanced report with news
 
 scripts/stock_analyzer.py            # CLI entry point
+AGENTS.md                             # AI Agent quick reference
 
 ## Example Output
 

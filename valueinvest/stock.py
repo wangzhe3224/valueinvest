@@ -171,6 +171,7 @@ class Stock:
     prior_asset_turnover: float = 0.0
 
     extra: Dict[str, Any] = field(default_factory=dict)
+    warnings: List[str] = field(default_factory=list)
 
     @property
     def pe_ratio(self) -> float:
@@ -301,6 +302,38 @@ class Stock:
         """Total shareholder yield (dividend + true buyback yield)"""
         return self.dividend_yield + self.true_buyback_yield
 
+    def __repr__(self) -> str:
+        parts = [f"Stock({self.ticker})"]
+        if self.name:
+            parts.append(f'"{self.name}"')
+        if self.current_price > 0:
+            parts.append(f"Price: {self.current_price}")
+        if self.eps > 0:
+            parts.append(f"PE: {self.pe_ratio:.1f}")
+        return " | ".join(parts)
+
+    def summary(self) -> str:
+        """Return a structured data summary for quick inspection."""
+        lines = [f"=== {self.ticker} {self.name} ==="]
+        lines.append(f"Price: {self.current_price} | PE: {self.pe_ratio:.1f} | PB: {self.pb_ratio:.1f}")
+        lines.append(f"Market Cap: {self.market_cap:,.0f} | EV: {self.enterprise_value:,.0f}")
+        lines.append(f"EPS: {self.eps} | BVPS: {self.bvps} | Div Yield: {self.dividend_yield:.1f}%")
+        lines.append(f"Revenue: {self.revenue:,.0f} | Net Income: {self.net_income:,.0f} | FCF: {self.fcf:,.0f}")
+        lines.append(f"ROE: {self.roe:.1f}% | Growth: {self.growth_rate:.1f}%")
+        if self.sector:
+            lines.append(f"Sector: {self.sector} | Industry: {self.industry}")
+        if self.warnings:
+            lines.append(f"Warnings: {'; '.join(self.warnings)}")
+        # Data quality hints
+        zero_fields = []
+        if self.eps == 0: zero_fields.append("eps")
+        if self.bvps == 0: zero_fields.append("bvps")
+        if self.fcf == 0: zero_fields.append("fcf")
+        if self.revenue == 0: zero_fields.append("revenue")
+        if zero_fields:
+            lines.append(f"Missing data: {', '.join(zero_fields)}")
+        return "\n".join(lines)
+
     @classmethod
     def from_api(
         cls,
@@ -319,6 +352,9 @@ class Stock:
 
         stock = cls.from_dict(result.data)
 
+        # Collect warnings
+        _warnings: List[str] = []
+
         # Check data freshness with differentiated checks
         market = "A-share" if ticker.isdigit() else "US"
 
@@ -330,10 +366,9 @@ class Stock:
                 result.data["data_timestamp"], market=market
             )
 
-            # Print warning for stale/old price data
+            # Collect warning for stale/old price data
             if status in ("stale", "old"):
-                warning = format_price_freshness_warning(status, days_old, ticker)
-                print(warning)
+                _warnings.append(format_price_freshness_warning(status, days_old, ticker))
 
         # Check fundamental data freshness (tolerant: up to 6 months)
         if "fundamental_report_date" in result.data and result.data["fundamental_report_date"]:
@@ -346,11 +381,11 @@ class Stock:
                 result.data["fundamental_report_date"]
             )
 
-            # Print warning for old fundamental data
+            # Collect warning for old fundamental data
             if status in ("stale", "old"):
-                warning = format_fundamental_freshness_warning(status, months_old, ticker)
-                print(warning)
+                _warnings.append(format_fundamental_freshness_warning(status, months_old, ticker))
 
+        stock.warnings = _warnings
         return stock
 
     @classmethod
@@ -541,12 +576,11 @@ class Stock:
             extra=extra_fields,
         )
 
-    def to_dict(self) -> dict:
-        return {
+    def to_dict(self, full: bool = False) -> dict:
+        base = {
             "ticker": self.ticker,
             "name": self.name,
             "current_price": self.current_price,
-            "shares_outstanding": self.shares_outstanding,
             "eps": self.eps,
             "bvps": self.bvps,
             "revenue": self.revenue,
@@ -558,3 +592,37 @@ class Stock:
             "roe": self.roe,
             "market_cap": self.market_cap,
         }
+        if full:
+            base.update({
+                "shares_outstanding": self.shares_outstanding,
+                "enterprise_value": self.enterprise_value,
+                "ebit": self.ebit,
+                "ebitda": self.ebitda,
+                "operating_margin": self.operating_margin,
+                "tax_rate": self.tax_rate,
+                "growth_rate": self.growth_rate,
+                "dividend_per_share": self.dividend_per_share,
+                "dividend_growth_rate": self.dividend_growth_rate,
+                "depreciation": self.depreciation,
+                "capex": self.capex,
+                "sbc": self.sbc,
+                "shares_issued": self.shares_issued,
+                "shares_repurchased": self.shares_repurchased,
+                "operating_cash_flow": self.operating_cash_flow,
+                "total_debt": self.total_debt,
+                "cash_and_equivalents": self.cash_and_equivalents,
+                "net_debt": self.net_debt,
+                "short_term_debt": self.short_term_debt,
+                "long_term_debt": self.long_term_debt,
+                "total_assets": self.total_assets,
+                "total_liabilities": self.total_liabilities,
+                "current_assets": self.current_assets,
+                "sector": self.sector,
+                "industry": self.industry,
+                "currency": self.currency,
+                "historical_pe": self.historical_pe,
+                "historical_pb": self.historical_pb,
+            })
+            if self.extra:
+                base["extra"] = self.extra
+        return base

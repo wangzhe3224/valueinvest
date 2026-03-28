@@ -45,6 +45,31 @@ class ValuationResult:
         """Check if the valuation result is reliable (no missing critical fields)."""
         return len(self.missing_fields) == 0 and self.fair_value > 0
 
+    def to_summary(self) -> str:
+        """Return a concise one-line summary for agent consumption."""
+        status = f"[{self.applicability}]" if self.applicability != "Applicable" else ""
+        range_str = ""
+        if self.fair_value_range and self.fair_value_range.base > 0:
+            range_str = f" (Range: {self.fair_value_range.low:.2f}-{self.fair_value_range.high:.2f})"
+        return (
+            f"{self.method}: Fair Value={self.fair_value:.2f} | "
+            f"Price={self.current_price:.2f} | "
+            f"{self.assessment} | "
+            f"Confidence={self.confidence}{status}{range_str}"
+        )
+
+    def __str__(self) -> str:
+        lines = [self.to_summary()]
+        if self.missing_fields:
+            lines.append(f"  Missing: {', '.join(self.missing_fields)}")
+        if self.details:
+            for k, v in self.details.items():
+                lines.append(f"  {k}: {v}")
+        if self.analysis:
+            for a in self.analysis[:5]:  # Limit to first 5 analysis points
+                lines.append(f"  - {a}")
+        return "\n".join(lines)
+
 
 @dataclass
 class FieldRequirement:
