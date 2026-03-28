@@ -5,25 +5,22 @@ All notable changes to this project will be documented in this file.
 ## [1.0.4] - 2026-03-28
 
 ### Fixed
-- **Graham Number**: Added BVPS threshold ($10) for asset-light companies. Tech companies with low BVPS (due to buybacks/intangibles) now return N/A instead of absurdly inflated values.
-- **Magic Formula**: Fixed invested capital always being $0 by populating `net_working_capital` and `net_fixed_assets` from yfinance balance sheet. Added fallback using Equity + Debt when Greenblatt's formula yields non-positive capital.
-
-## [1.0.3] - 2026-03-28
-
-### Fixed
-- **yfinance data mapping**: Fixed 12 fields returning None/0 from `Stock.from_api()`:
-  - `operating_cash_flow`, `ebitda`, `total_debt`, `cash_and_equivalents` now populated from financial statements
-  - `sector`, `industry`, `earnings_growth`, `revenue_growth` now populated from `ticker.info`
-  - `inventory`, `accounts_receivable`, `accounts_payable`, `retained_earnings` now populated from balance sheet
-  - `short_term_debt`, `long_term_debt` now populated from balance sheet
-- **capex sign convention**: Now stored as positive value (expenditure), matching intuitive expectation
-- **Prior year data**: `prior_roa`, `prior_debt_ratio`, `prior_current_ratio`, `prior_shares_outstanding`, `prior_gross_margin`, `prior_asset_turnover` now computed from prior year financials for F-Score/M-Score
-- **total_liabilities**: Now correctly mapped from balance sheet `Total Liabilities Net Minority Interest` instead of `info.totalDebt`
+- **yfinance data mapping**: Fixed 12+ fields returning None/0 from `Stock.from_api()`:
+  - `operating_cash_flow`, `ebitda`, `total_debt`, `cash_and_equivalents` now from financial statements
+  - `sector`, `industry`, `earnings_growth`, `revenue_growth` now from `ticker.info`
+  - `inventory`, `accounts_receivable`, `accounts_payable`, `retained_earnings` now from balance sheet
+  - `short_term_debt`, `long_term_debt` now from balance sheet
+- **capex sign convention**: Now stored as positive value (expenditure)
+- **Prior year data**: `prior_roa`, `prior_debt_ratio`, `prior_current_ratio`, `prior_shares_outstanding`, `prior_gross_margin`, `prior_asset_turnover` computed from prior year financials
+- **total_liabilities**: Now from balance sheet `Total Liabilities Net Minority Interest` instead of `info.totalDebt`
+- **growth_rate**: Now defaults to `revenueGrowth` from API instead of 0
+- **Graham Number**: Added BVPS threshold ($10) for asset-light companies (e.g., tech with massive buybacks)
+- **Magic Formula**: Fixed invested capital always being $0 by populating `net_working_capital`/`net_fixed_assets` from balance sheet, with Equity + Debt fallback
+- **Value Trap**: Fixed `revenue_cagr_5y` parameter not being used — CAGR input now auto-normalizes decimal vs percentage format
 
 ### Added
 - New Stock fields: `sector`, `industry`, `earnings_growth`, `revenue_growth`, `operating_cash_flow`, `total_debt`, `cash_and_equivalents`
 - Computed properties: `revenue_cagr_5y`, `earnings_cagr_5y`, `gross_margin`, `asset_turnover`, `current_ratio`, `roa`, `debt_ratio`
-- 5-year CAGR for revenue and earnings computed from historical financials
 
 ## [1.0.2] - 2026-03-12
 

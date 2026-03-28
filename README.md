@@ -4,12 +4,12 @@ A modular Python library for comprehensive stock valuation using multiple method
 
 ## ✨ Recent Updates
 
-**2026-03-09**: Fixed A-share data fetching issues and added data freshness checking
-- Fixed column name matching, bank stock support, and flexible period formats
-- Added differentiated freshness checks (price: strict, fundamentals: tolerant)
+**2026-03-28**: Major data quality and valuation fixes
+- Fixed 12+ fields returning None/0 from `Stock.from_api()` (operating_cash_flow, ebitda, sector, inventory, prior_* data, etc.)
+- Fixed Graham Number, Magic Formula, and Value Trap detector edge cases
+- Added `revenue_cagr_5y`, `earnings_cagr_5y`, and other computed properties
 - See [CHANGELOG.md](CHANGELOG.md) for detailed changes
 
-## Features
 ## Features
 
 - **Real-time Data Fetching**: A-shares (AKShare), US stocks (yfinance), optional Tushare
