@@ -57,6 +57,11 @@ class YFinanceFetcher(BaseFetcher):
                 "exchange": info.get("exchange", ""),
                 "sector": info.get("sector", ""),
                 "industry": info.get("industry", ""),
+                "target_mean_price": info.get("targetMeanPrice", 0) or 0,
+                "target_high_price": info.get("targetHighPrice", 0) or 0,
+                "target_low_price": info.get("targetLowPrice", 0) or 0,
+                "number_of_analysts": info.get("numberOfAnalystOpinions", 0) or 0,
+                "recommendation": info.get("recommendationKey", "") or "",
             }
 
             missing = [k for k, v in data.items() if v is None or v == 0]
@@ -110,13 +115,14 @@ class YFinanceFetcher(BaseFetcher):
                 "net_debt": info.get("netDebt", 0) or 0,
                 "net_working_capital": 0,
                 "net_fixed_assets": 0,
-                "fcf": 0,
+                # TTM values from info (primary source, annual report is fallback)
+                "fcf": float(info.get("freeCashflow", 0) or 0),
                 "depreciation": 0,
                 "capex": 0,
                 "dividend_per_share": info.get("trailingAnnualDividendRate", 0) or 0,
                 "dividend_growth_rate": 0,  # Will be calculated below
                 "growth_rate": (info.get("revenueGrowth", 0) or 0) * 100,
-                # New fields from info
+                # TTM values from info (primary source)
                 "ebitda": float(info.get("ebitda", 0) or 0),
                 "earnings_growth": (info.get("earningsGrowth", 0) or 0) * 100,
                 "revenue_growth": (info.get("revenueGrowth", 0) or 0) * 100,
@@ -162,6 +168,32 @@ class YFinanceFetcher(BaseFetcher):
                         data["depreciation"] = float(financials.loc["Depreciation"].iloc[0])
                     if "Gross Profit" in financials.index:
                         data["gross_profit"] = float(financials.loc["Gross Profit"].iloc[0])
+                    # Interest expense (for WACC and interest coverage)
+                    if "Interest Expense" in financials.index:
+                        ie_series = financials.loc["Interest Expense"]
+                        # Find first non-NaN value (latest year may be NaN)
+                        for val in ie_series:
+                            if val == val:  # NaN check (NaN != NaN)
+                                data["interest_expense"] = abs(float(val))
+                                break
+                    if data.get("interest_expense", 0) == 0 and "Interest Income" in financials.index:
+                        # Net interest: try to find both expense and income
+                        ie_series = financials.loc.get("Interest Expense")
+                        ii_series = financials.loc.get("Interest Income")
+                        ie_val = 0.0
+                        ii_val = 0.0
+                        if ie_series is not None:
+                            for val in ie_series:
+                                if val == val:
+                                    ie_val = float(val)
+                                    break
+                        if ii_series is not None:
+                            for val in ii_series:
+                                if val == val:
+                                    ii_val = float(val)
+                                    break
+                        if ie_val != 0 or ii_val != 0:
+                            data["interest_expense"] = abs(ie_val - ii_val)
                     # Compute tax rate from income statement
                     if "Tax Provision" in financials.index and "Pretax Income" in financials.index:
                         tax = abs(float(financials.loc["Tax Provision"].iloc[0]))
@@ -224,15 +256,17 @@ class YFinanceFetcher(BaseFetcher):
             except (KeyError, IndexError, TypeError):
                 pass
 
-            # Cash flow data
+            # Cash flow data (fallback for TTM values from info)
             try:
                 if not cashflow.empty:
                     if "Operating Cash Flow" in cashflow.index:
-                        data["operating_cash_flow"] = float(
-                            cashflow.loc["Operating Cash Flow"].iloc[0]
-                        )
+                        ocf_val = float(cashflow.loc["Operating Cash Flow"].iloc[0])
+                        if data.get("operating_cash_flow", 0) == 0:
+                            data["operating_cash_flow"] = ocf_val
                     if "Free Cash Flow" in cashflow.index:
-                        data["fcf"] = float(cashflow.loc["Free Cash Flow"].iloc[0])
+                        fcf_val = float(cashflow.loc["Free Cash Flow"].iloc[0])
+                        if data.get("fcf", 0) == 0:
+                            data["fcf"] = fcf_val
                     if "Capital Expenditure" in cashflow.index:
                         # Store as positive value representing expenditure
                         raw_capex = float(cashflow.loc["Capital Expenditure"].iloc[0])
@@ -362,6 +396,94 @@ class YFinanceFetcher(BaseFetcher):
                         e_cagr = (valid_incomes[0] / valid_incomes[-1]) ** (1 / years) - 1
                         data["earnings_cagr_5y"] = round(e_cagr * 100, 2)
             except (KeyError, IndexError, TypeError, ZeroDivisionError):
+                pass
+
+            # Historical PE/PB data for relative valuation (Task 1)
+            try:
+                shares = info.get("sharesOutstanding", 0) or info.get(
+                    "impliedSharesOutstanding", 0
+                )
+                shares = float(shares) if shares else 0.0
+
+                if shares > 0 and (not financials.empty or not balance_sheet.empty):
+                    hist = stock.history(period="5y")
+                    if hist is not None and not hist.empty:
+                        # Resample to yearly average prices
+                        yearly_avg = hist["Close"].resample("YE").mean()
+
+                        historical_pe_data = []
+                        historical_pb_data = []
+                        historical_pe_list = []
+                        historical_pb_list = []
+
+                        # Build year -> avg_price mapping
+                        price_by_year = {}
+                        for date_idx, avg_price in yearly_avg.items():
+                            yr = date_idx.year
+                            price_by_year[yr] = float(avg_price)
+
+                        # Get annual EPS from financials columns (each col = a fiscal year)
+                        eps_by_year = {}
+                        if not financials.empty and "Diluted EPS" in financials.index:
+                            for col in financials.columns:
+                                yr = col.year if hasattr(col, "year") else int(str(col)[:4])
+                                eps_by_year[yr] = float(financials.loc["Diluted EPS"][col])
+                        # Fallback: compute EPS from net income / shares per year
+                        if not eps_by_year and not financials.empty and "Net Income" in financials.index and "Diluted Average Shares" in financials.index:
+                            for col in financials.columns:
+                                yr = col.year if hasattr(col, "year") else int(str(col)[:4])
+                                ni = float(financials.loc["Net Income"][col])
+                                sh = float(financials.loc["Diluted Average Shares"][col])
+                                if sh > 0:
+                                    eps_by_year[yr] = ni / sh
+
+                        # Get annual BVPS from balance sheet
+                        bvps_by_year = {}
+                        if not balance_sheet.empty:
+                            equity_row = None
+                            for equity_name in ["Stockholders Equity", "Total Stockholder Equity", "Common Stock Equity"]:
+                                if equity_name in balance_sheet.index:
+                                    equity_row = balance_sheet.loc[equity_name]
+                                    break
+                            if equity_row is not None:
+                                for col in balance_sheet.columns:
+                                    yr = col.year if hasattr(col, "year") else int(str(col)[:4])
+                                    equity = float(equity_row[col])
+                                    bvps_by_year[yr] = equity / shares if shares > 0 else 0
+
+                        # Build historical PE data
+                        for yr in sorted(price_by_year.keys()):
+                            avg_price = price_by_year[yr]
+                            eps = eps_by_year.get(yr)
+                            if eps and eps > 0:
+                                pe = avg_price / eps
+                                historical_pe_data.append({
+                                    "year": yr,
+                                    "eps": round(eps, 4),
+                                    "avg_price": round(avg_price, 2),
+                                    "pe": round(pe, 2),
+                                })
+                                historical_pe_list.append(round(pe, 2))
+
+                        # Build historical PB data
+                        for yr in sorted(price_by_year.keys()):
+                            avg_price = price_by_year[yr]
+                            bvps = bvps_by_year.get(yr)
+                            if bvps and bvps > 0:
+                                pb = avg_price / bvps
+                                historical_pb_data.append({
+                                    "year": yr,
+                                    "bvps": round(bvps, 4),
+                                    "avg_price": round(avg_price, 2),
+                                    "pb": round(pb, 2),
+                                })
+                                historical_pb_list.append(round(pb, 2))
+
+                        data["historical_pe_data"] = historical_pe_data
+                        data["historical_pb_data"] = historical_pb_data
+                        data["historical_pe"] = historical_pe_list
+                        data["historical_pb"] = historical_pb_list
+            except Exception:
                 pass
 
             missing = [k for k, v in data.items() if v is None or v == 0]

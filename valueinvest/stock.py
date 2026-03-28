@@ -115,6 +115,9 @@ class Stock:
     # Historical multiples (for relative valuation)
     historical_pe: List[float] = field(default_factory=list)
     historical_pb: List[float] = field(default_factory=list)
+    # Detailed historical PE/PB data with year, eps/bvps, avg_price, ratio
+    historical_pe_data: list = field(default_factory=list)
+    historical_pb_data: list = field(default_factory=list)
     # SBC (Stock-Based Compensation) related fields
     sbc: float = 0.0  # Stock-Based Compensation (annual)
     shares_issued: float = 0.0  # Shares issued from SBC/options (annual)
@@ -158,6 +161,13 @@ class Stock:
     operating_cash_flow: float = 0.0
     total_debt: float = 0.0
     cash_and_equivalents: float = 0.0
+
+    # Analyst target prices
+    target_mean_price: float = 0.0
+    target_high_price: float = 0.0
+    target_low_price: float = 0.0
+    number_of_analysts: int = 0
+    recommendation: str = ""  # e.g. "Buy", "Hold", "Sell"
 
     sectors: list = field(default_factory=list)
     exchange: str = "SH"
@@ -452,6 +462,8 @@ class Stock:
             "accounts_payable",
             "historical_pe",
             "historical_pb",
+            "historical_pe_data",
+            "historical_pb_data",
             "sbc",
             "shares_issued",
             "shares_repurchased",
@@ -500,6 +512,11 @@ class Stock:
             "operating_cash_flow",
             "total_debt",
             "cash_and_equivalents",
+            "target_mean_price",
+            "target_high_price",
+            "target_low_price",
+            "number_of_analysts",
+            "recommendation",
         }
 
         # Store non-reserved fields in extra
@@ -530,6 +547,8 @@ class Stock:
             accounts_payable=data.get("accounts_payable", 0.0),
             historical_pe=data.get("historical_pe", []),
             historical_pb=data.get("historical_pb", []),
+            historical_pe_data=data.get("historical_pe_data", []),
+            historical_pb_data=data.get("historical_pb_data", []),
             sbc=data.get("sbc", 0.0),
             shares_issued=data.get("shares_issued", 0.0),
             shares_repurchased=data.get("shares_repurchased", 0.0),
@@ -576,6 +595,12 @@ class Stock:
             operating_cash_flow=data.get("operating_cash_flow", 0.0),
             total_debt=data.get("total_debt", 0.0),
             cash_and_equivalents=data.get("cash_and_equivalents", 0.0),
+            # Analyst target prices
+            target_mean_price=data.get("target_mean_price", 0.0),
+            target_high_price=data.get("target_high_price", 0.0),
+            target_low_price=data.get("target_low_price", 0.0),
+            number_of_analysts=data.get("number_of_analysts", 0),
+            recommendation=data.get("recommendation", ""),
             extra=extra_fields,
         )
 
@@ -626,6 +651,13 @@ class Stock:
                 "currency": self.currency,
                 "historical_pe": self.historical_pe,
                 "historical_pb": self.historical_pb,
+                "historical_pe_data": self.historical_pe_data,
+                "historical_pb_data": self.historical_pb_data,
+                "target_mean_price": self.target_mean_price,
+                "target_high_price": self.target_high_price,
+                "target_low_price": self.target_low_price,
+                "number_of_analysts": self.number_of_analysts,
+                "recommendation": self.recommendation,
             })
             if self.extra:
                 base["extra"] = self.extra

@@ -108,6 +108,14 @@ results = engine.run_all(stock)
 results = engine.run_dividend(stock)  # Dividend stocks
 results = engine.run_bank(stock)      # Banks
 results = engine.run_growth(stock)    # Growth stocks
+
+# Batch analysis - compare multiple stocks
+result = engine.analyze_batch(['AAPL', 'MSFT', 'GOOGL'])
+print(engine.format_batch_table(result))
+
+# Filter results
+for s in result.undervalued:
+    print(f"{s.ticker}: {s.upside_pct:+.1f}% upside")
 ```
 
 ## News & Sentiment Analysis

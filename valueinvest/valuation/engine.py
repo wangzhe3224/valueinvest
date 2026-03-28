@@ -1,7 +1,9 @@
 """
 Valuation Engine - Unified interface for all valuation methods.
 """
+from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
+
 from .base import ValuationResult
 from .graham import GrahamNumber, GrahamFormula, NCAV
 from .dcf import DCF, ReverseDCF
@@ -26,7 +28,46 @@ try:
     CYCLICAL_AVAILABLE = True
 except ImportError:
     CYCLICAL_AVAILABLE = False
-from .mscore import BeneishMScore
+
+
+@dataclass
+class StockAnalysis:
+    """Single stock analysis result for batch processing."""
+    ticker: str
+    name: str
+    current_price: float
+    fair_value: float
+    upside_pct: float
+    assessment: str
+    methods_count: int
+    reliable_methods: int
+    top_methods: List[str]  # Methods that agree on assessment
+    warnings: List[str] = field(default_factory=list)
+
+
+@dataclass
+class BatchAnalysisResult:
+    """Result of batch stock analysis."""
+    stocks: List[StockAnalysis]
+    summary: Dict[str, Any]
+    errors: List[str] = field(default_factory=list)
+
+    @property
+    def ranked_by_upside(self) -> List[StockAnalysis]:
+        """Stocks ranked by upside potential (highest first)."""
+        return sorted(
+            [s for s in self.stocks if s.fair_value > 0],
+            key=lambda x: x.upside_pct,
+            reverse=True
+        )
+
+    @property
+    def undervalued(self) -> List[StockAnalysis]:
+        return [s for s in self.stocks if s.upside_pct > 15]
+
+    @property
+    def overvalued(self) -> List[StockAnalysis]:
+        return [s for s in self.stocks if s.upside_pct < -15]
 
 
 class ValuationEngine:
@@ -421,3 +462,117 @@ class ValuationEngine:
 
         valuator = self._methods[method]
         return valuator.get_applicability_info()
+
+    def analyze_batch(
+        self,
+        tickers: List[str],
+        methods: Optional[List[str]] = None,
+        **kwargs
+    ) -> BatchAnalysisResult:
+        """Analyze multiple stocks and return comparative results.
+
+        Args:
+            tickers: List of stock ticker symbols
+            methods: Specific methods to run (default: run_recommended)
+            **kwargs: Additional kwargs passed to valuation methods
+
+        Returns:
+            BatchAnalysisResult with individual stock analyses and summary
+        """
+        from ..stock import Stock
+
+        stock_results = []
+        errors = []
+
+        for ticker in tickers:
+            try:
+                stock = Stock.from_api(ticker)
+
+                if methods:
+                    results = self.run_multiple(stock, methods, **kwargs)
+                else:
+                    results = self.run_recommended(stock, **kwargs)
+
+                summary = self.summary(results)
+
+                # Get top agreeing methods
+                valid = [r for r in results if r.fair_value > 0 and r.is_reliable]
+                if valid:
+                    assessments = {}
+                    for r in valid:
+                        a = r.assessment
+                        assessments[a] = assessments.get(a, 0) + 1
+                    top_assessment = max(assessments, key=assessments.get)
+                    top_methods = [r.method for r in valid if r.assessment == top_assessment]
+                else:
+                    top_assessment = "N/A"
+                    top_methods = []
+
+                stock_results.append(StockAnalysis(
+                    ticker=ticker,
+                    name=stock.name,
+                    current_price=stock.current_price,
+                    fair_value=round(summary.get("median_value", 0), 2),
+                    upside_pct=round(summary.get("average_premium_discount", 0), 1),
+                    assessment=top_assessment,
+                    methods_count=summary.get("total_methods", 0),
+                    reliable_methods=summary.get("reliable_count", 0),
+                    top_methods=top_methods[:3],
+                    warnings=stock.warnings if hasattr(stock, 'warnings') else [],
+                ))
+            except Exception as e:
+                errors.append(f"{ticker}: {type(e).__name__}: {e}")
+
+        # Batch summary
+        undervalued = [s for s in stock_results if s.upside_pct > 15]
+        overvalued = [s for s in stock_results if s.upside_pct < -15]
+        fair = [s for s in stock_results if -15 <= s.upside_pct <= 15 and s.fair_value > 0]
+
+        batch_summary = {
+            "total_analyzed": len(stock_results),
+            "undervalued_count": len(undervalued),
+            "overvalued_count": len(overvalued),
+            "fair_value_count": len(fair),
+            "error_count": len(errors),
+            "avg_upside_pct": round(
+                sum(s.upside_pct for s in stock_results) / len(stock_results), 1
+            ) if stock_results else 0,
+        }
+
+        return BatchAnalysisResult(
+            stocks=stock_results,
+            summary=batch_summary,
+            errors=errors,
+        )
+
+    @staticmethod
+    def format_batch_table(result: BatchAnalysisResult) -> str:
+        """Format batch results as a readable table."""
+        lines = []
+        lines.append(
+            f"{'Ticker':<8} {'Name':<25} {'Price':>8} "
+            f"{'Fair Val':>10} {'Upside':>8} {'Assessment':<15} {'Methods':>8}"
+        )
+        lines.append("-" * 85)
+
+        for s in result.ranked_by_upside:
+            name = s.name[:23] if s.name else s.ticker
+            lines.append(
+                f"{s.ticker:<8} {name:<25} ${s.current_price:>7.2f} "
+                f"${s.fair_value:>9.2f} {s.upside_pct:>+7.1f}% "
+                f"{s.assessment:<15} {s.reliable_methods:>3}/{s.methods_count:<3}"
+            )
+
+        lines.append("")
+        lines.append(
+            f"Summary: {result.summary.get('total_analyzed', 0)} analyzed, "
+            f"{result.summary.get('undervalued_count', 0)} undervalued, "
+            f"{result.summary.get('overvalued_count', 0)} overvalued"
+        )
+
+        if result.errors:
+            lines.append(f"Errors: {len(result.errors)}")
+            for e in result.errors:
+                lines.append(f"  {e}")
+
+        return "\n".join(lines)

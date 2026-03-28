@@ -4,38 +4,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed
-- **yfinance fetcher**: Compute `net_debt` from balance sheet (`total_debt - cash`) when yfinance `netDebt` is None. Previously defaulted to 0, causing DCF and EV/EBITDA to ignore debt/cash.
-- **yfinance fetcher**: Dividend growth rate now uses last 10 complete years (excludes partial current year) instead of entire history, fixing inflated growth rates (e.g. JNJ showed 10.4% instead of correct 5.6%).
-- **Stock**: Added missing `current_liabilities` field. Previously fetched by yfinance but silently dropped, causing wrong current ratio in Piotroski F-Score.
-- **AAA corporate yield**: Updated default from 2.28% to 5.30% (current Moody's Aaa rate as of March 2026). Previous value caused Graham Formula to massively overestimate fair value.
-- **Currency symbols**: Changed hardcoded ¥ to $ in analysis strings across Graham, DDM, Bank, and Growth modules.
-- **Altman Z-Score**: Fixed NaN handling when `retained_earnings` is missing. Previously NaN propagated to Z-Score causing wrong "High Risk" classification.
-- **Piotroski F-Score**: Use `operating_cash_flow` instead of `fcf` for criteria F2/F4. FCF (= OCF - CapEx) always understates cash generation.
-- **Piotroski F-Score**: Fixed current ratio to use `current_liabilities` instead of `total_liabilities`.
-- **Cyclical methods**: Return clear "Not Applicable" message when called with regular `Stock` instead of crashing with AttributeError.
-- **Bank methods**: Removed Altman Z-Score from BANK_METHODS (formula doesn't work for financial institutions).
-
-## [Unreleased]
-
-
-
-### Fixed
-- **Moat/Capital engines**: Fixed TypeError when passing optional kwargs to signal functions. Now inspects each function's signature before passing kwargs.
-
 ### Added
-- **AGENTS.md**: Agent-oriented quick reference with common patterns, decision points, data quality checks, and pitfall warnings
-- **Stock.__repr__()**: Concise one-line string representation for quick debugging
-- **Stock.summary()**: Structured multi-line data summary with data quality hints
-- **Stock.warnings**: Warnings list populated by `from_api()` instead of printing to stdout
-- **Stock.to_dict(full=True)**: Full data export including all financial fields
-- **ValuationResult.to_summary()**: Concise one-line summary for agent consumption
-- **ValuationResult.__str__()**: Multi-line string with details and analysis points
-- **Custom exceptions**: `DataFetchError`, `InsufficientDataError`, `UnsupportedMarketError` in `valueinvest/exceptions.py`
+- **Historical PE/PB data**: yfinance fetcher now computes 5-year historical PE and PB ratios (avg_price / EPS, avg_price / BVPS) with detailed `historical_pe_data`/`historical_pb_data` dicts for relative valuation.
+- **Interest expense**: yfinance fetcher now extracts interest expense from income statement, handling NaN in latest year and falling back to net interest (expense - income).
+- **TTM data priority**: `fcf` and `operating_cash_flow` now use TTM values from yfinance `info` dict as primary source; annual report cashflow data is fallback only.
+- **Batch analysis**: `ValuationEngine.analyze_batch()` for comparing multiple stocks, with `StockAnalysis`/`BatchAnalysisResult` dataclasses and `format_batch_table()` helper.
+- **Analyst target prices**: Added `target_mean_price`, `target_high_price`, `target_low_price`, `number_of_analysts`, `recommendation` fields to Stock (via yfinance info dict).
+- **Peer comparison module**: New `valueinvest.data.fetcher.peers` with `fetch_peer_metrics()` to fetch valuation metrics for a list of peer tickers.
+- **PE Relative Valuation**: Now includes analyst consensus target and upside % in analysis and details.
+- **AGENTS.md**: Agent-oriented quick reference with common patterns, decision points, data quality checks, and pitfall warnings.
+- **Stock.__repr__()**: Concise one-line string representation for quick debugging.
+- **Stock.summary()**: Structured multi-line data summary with data quality hints.
+- **Stock.warnings**: Warnings list populated by `from_api()` instead of printing to stdout.
+- **Stock.to_dict(full=True)**: Full data export including all financial fields.
+- **ValuationResult.to_summary()**: Concise one-line summary for agent consumption.
+- **ValuationResult.__str__()**: Multi-line string with details and analysis points.
+- **Custom exceptions**: `DataFetchError`, `InsufficientDataError`, `UnsupportedMarketError` in `valueinvest/exceptions.py`.
+
+### Fixed
+- **yfinance fetcher**: Compute `net_debt` from balance sheet (`total_debt - cash`) when yfinance `netDebt` is None.
+- **yfinance fetcher**: Dividend growth rate now uses last 10 complete years (excludes partial current year).
+- **yfinance fetcher**: `tax_rate` computed from income statement (`Tax Provision / Pretax Income`).
+- **Stock**: Added missing `current_liabilities` field.
+- **AAA corporate yield**: Updated default from 2.28% to 5.30% (current Moody's Aaa rate as of March 2026).
+- **Currency symbols**: Changed hardcoded ¥ to $ in analysis strings across Graham, DDM, Bank, and Growth modules.
+- **Altman Z-Score**: Fixed NaN handling when `retained_earnings` is missing.
+- **Piotroski F-Score**: Use `operating_cash_flow` instead of `fcf` for criteria F2/F4.
+- **Piotroski F-Score**: Fixed current ratio to use `current_liabilities` instead of `total_liabilities`.
+- **Beneish M-Score**: Medium risk no longer flagged as `is_manipulator=True`.
+- **Cyclical methods**: Return clear "Not Applicable" message when called with regular `Stock`.
+- **Bank methods**: Removed Altman Z-Score from BANK_METHODS.
+- **Value Trap**: Registered in `ValuationEngine._methods` (was imported but missing from dict).
+- **Moat/Capital engines**: Fixed TypeError when passing optional kwargs to signal functions.
 
 ### Improved
-- **ValuationEngine.run_multiple()**: Error results now include exception type name and proper confidence/applicability flags
-- **Stock.from_api()**: Freshness warnings stored in `stock.warnings` instead of printing to stdout
+- **ValuationEngine.run_multiple()**: Error results now include exception type name and proper confidence/applicability flags.
+- **Stock.from_api()**: Freshness warnings stored in `stock.warnings` instead of printing to stdout.
 
 ## [1.0.4] - 2026-03-28
 
@@ -65,7 +69,6 @@ All notable changes to this project will be documented in this file.
   - Real data examples (AAPL, 600887)
   - Sensitivity analysis and visualization
   - Reverse DCF for market expectations
-
 
 ## [1.0.1] - 2026-03-09
 

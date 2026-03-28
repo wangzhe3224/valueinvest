@@ -119,4 +119,5 @@ __all__ = [
     "detect_source",
     "get_fetcher",
     "normalize_ashare_ticker",
+    "peers",
 ]

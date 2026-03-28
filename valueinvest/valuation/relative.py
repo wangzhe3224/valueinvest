@@ -211,6 +211,11 @@ class PERelativeValuation(BaseValuation):
             analysis.append(f"Industry Average: {industry_avg:.1f}x")
             analysis.append(f"vs Industry: {multiples.vs_industry:+.1f}%")
 
+        if stock.target_mean_price > 0:
+            analysis.append(f"Analyst consensus target: ${stock.target_mean_price:.2f} ({((stock.target_mean_price/stock.current_price-1)*100):+.1f}% upside)")
+            if stock.number_of_analysts > 0:
+                analysis.append(f"Based on {stock.number_of_analysts} analyst opinions")
+
         analysis.extend(
             [
                 "",
@@ -258,6 +263,8 @@ class PERelativeValuation(BaseValuation):
                 "peer_avg_pe": round(peer_avg, 2) if peer_avg else None,
                 "industry_avg_pe": round(industry_avg, 2) if industry_avg else None,
                 "data_points": len(historical_pe),
+                "analyst_target": stock.target_mean_price if stock.target_mean_price > 0 else None,
+                "analyst_upside": round(((stock.target_mean_price / stock.current_price) - 1) * 100, 1) if stock.target_mean_price > 0 else None,
             },
             components={
                 "current_pe": current_pe,

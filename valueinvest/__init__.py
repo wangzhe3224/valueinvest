@@ -39,7 +39,7 @@ from .insider.registry import InsiderRegistry
 from .news.registry import NewsRegistry
 from .stock import Stock, StockHistory
 from .valuation.base import ValuationResult
-from .valuation.engine import ValuationEngine
+from .valuation.engine import ValuationEngine, StockAnalysis, BatchAnalysisResult
 from .valuation.mscore import calculate_m_score
 
 # Convenience functions
@@ -61,6 +61,8 @@ __all__ = [
     "StockHistory",
     "ValuationEngine",
     "ValuationResult",
+    "StockAnalysis",
+    "BatchAnalysisResult",
     # Registries
     "NewsRegistry",
     "InsiderRegistry",
