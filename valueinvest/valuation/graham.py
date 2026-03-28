@@ -17,14 +17,30 @@ class GrahamNumber(BaseValuation):
     best_for = ["Defensive investors", "Stable blue-chip stocks", "Conservative valuation"]
     not_for = ["Growth stocks", "Negative earnings companies", "Asset-light businesses"]
     
+    # BVPS below this threshold indicates an asset-light company where
+    # the Graham Number is unreliable (e.g., tech with massive buybacks).
+    BVPS_THRESHOLD = 10.0
+
     def calculate(self, stock) -> ValuationResult:
         is_valid, missing, warnings = self.validate_data(stock)
         if not is_valid:
             return self._create_error_result(stock, f"Missing required data: {', '.join(missing)}", missing)
-        
+
         eps = stock.eps
         bvps = stock.bvps
-        
+
+        # Graham Number was designed for traditional manufacturing companies.
+        # Asset-light companies (BVPS < threshold due to buybacks/intangibles)
+        # produce absurdly inflated values.
+        if bvps < self.BVPS_THRESHOLD:
+            return self._create_error_result(
+                stock,
+                f"Graham Number not applicable: BVPS (${bvps:.2f}) is below ${self.BVPS_THRESHOLD:.0f} threshold. "
+                f"This typically indicates an asset-light company (e.g., tech with massive buybacks) "
+                f"where the formula is unreliable.",
+                ["bvps"],
+            )
+
         graham_number = math.sqrt(22.5 * eps * bvps)
         premium_discount = ((graham_number - stock.current_price) / stock.current_price) * 100
         

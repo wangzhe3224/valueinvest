@@ -148,6 +148,16 @@ class Stock:
     provision_coverage: float = 0.0
     capital_adequacy_ratio: float = 0.0
 
+    sector: str = ""
+    industry: str = ""
+    earnings_growth: float = 0.0
+    revenue_growth: float = 0.0
+
+    # Cash flow detail fields
+    operating_cash_flow: float = 0.0
+    total_debt: float = 0.0
+    cash_and_equivalents: float = 0.0
+
     sectors: list = field(default_factory=list)
     exchange: str = "SH"
     currency: str = "CNY"
@@ -190,6 +200,54 @@ class Stock:
     @property
     def fcf_per_share(self) -> float:
         return self.fcf / self.shares_outstanding if self.shares_outstanding > 0 else 0
+
+    @property
+    def gross_margin(self) -> float:
+        """Gross margin as percentage. Computed from extra if available."""
+        if self.revenue <= 0:
+            return 0.0
+        gm = self.extra.get("_gross_margin", 0.0)
+        return gm if gm else 0.0
+
+    @property
+    def asset_turnover(self) -> float:
+        """Asset turnover ratio. Computed from extra if available."""
+        if self.total_assets <= 0:
+            return 0.0
+        at = self.extra.get("_asset_turnover", 0.0)
+        return at if at else 0.0
+
+    @property
+    def current_ratio(self) -> float:
+        """Current ratio. Computed from extra if available."""
+        cr = self.extra.get("_current_ratio", 0.0)
+        return cr if cr else 0.0
+
+    @property
+    def roa(self) -> float:
+        """Return on Assets as percentage. Computed from extra if available."""
+        roa = self.extra.get("_roa", 0.0)
+        return roa if roa else 0.0
+
+    @property
+    def debt_ratio(self) -> float:
+        """Total liabilities / total assets as percentage. Computed from extra if available."""
+        dr = self.extra.get("_debt_ratio", 0.0)
+        return dr if dr else 0.0
+
+    # === CAGR Properties ===
+
+    @property
+    def revenue_cagr_5y(self) -> float:
+        """5-year revenue CAGR from historical financial data (stored in extra)."""
+        cagr = self.extra.get("revenue_cagr_5y", 0.0)
+        return cagr if cagr else 0.0
+
+    @property
+    def earnings_cagr_5y(self) -> float:
+        """5-year earnings (net income) CAGR from historical financial data (stored in extra)."""
+        cagr = self.extra.get("earnings_cagr_5y", 0.0)
+        return cagr if cagr else 0.0
 
     # === SBC Related Properties ===
 
@@ -398,6 +456,13 @@ class Stock:
             "shareholder_equity",
             "market_cap",
             "enterprise_value",
+            "sector",
+            "industry",
+            "earnings_growth",
+            "revenue_growth",
+            "operating_cash_flow",
+            "total_debt",
+            "cash_and_equivalents",
         }
 
         # Store non-reserved fields in extra
@@ -464,6 +529,15 @@ class Stock:
             prior_shares_outstanding=data.get("prior_shares_outstanding", 0.0),
             prior_gross_margin=data.get("prior_gross_margin", 0.0),
             prior_asset_turnover=data.get("prior_asset_turnover", 0.0),
+            # Sector/industry info
+            sector=data.get("sector", ""),
+            industry=data.get("industry", ""),
+            earnings_growth=data.get("earnings_growth", 0.0),
+            revenue_growth=data.get("revenue_growth", 0.0),
+            # Cash flow detail
+            operating_cash_flow=data.get("operating_cash_flow", 0.0),
+            total_debt=data.get("total_debt", 0.0),
+            cash_and_equivalents=data.get("cash_and_equivalents", 0.0),
             extra=extra_fields,
         )
 

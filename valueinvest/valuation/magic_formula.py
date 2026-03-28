@@ -47,14 +47,19 @@ class MagicFormula(BaseValuation):
             return self._create_error_result(stock, "Enterprise Value must be positive", ["enterprise_value"])
         
         invested_capital = stock.net_fixed_assets + stock.net_working_capital
-        
+
         if invested_capital <= 0:
-            if stock.net_fixed_assets > 0 and stock.net_working_capital >= 0:
-                pass
+            # Fallback: use Total Equity + Total Debt (common approximation)
+            total_equity = stock.bvps * stock.shares_outstanding if (stock.bvps > 0 and stock.shares_outstanding > 0) else 0
+            total_debt = stock.net_debt if stock.net_debt > 0 else (stock.short_term_debt + stock.long_term_debt)
+            fallback_ic = total_equity + total_debt
+            if fallback_ic > 0:
+                invested_capital = fallback_ic
             else:
                 return self._create_error_result(
                     stock,
-                    f"Invalid Invested Capital: Net Fixed Assets ({stock.net_fixed_assets/1e9:.2f}B) + NWC ({stock.net_working_capital/1e9:.2f}B) = {invested_capital/1e9:.2f}B",
+                    f"Invalid Invested Capital: Net Fixed Assets ({stock.net_fixed_assets/1e9:.2f}B) + NWC ({stock.net_working_capital/1e9:.2f}B) = {invested_capital/1e9:.2f}B, "
+                    f"fallback (Equity + Debt) also failed",
                     ["net_fixed_assets", "net_working_capital"]
                 )
         

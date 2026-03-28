@@ -162,6 +162,21 @@ class ValueTrapDetector(BaseValuation):
     Z_SAFE = 2.99
     Z_DISTRESS = 1.81
 
+    @staticmethod
+    def _normalize_cagr(value: Optional[float]) -> Optional[float]:
+        """Normalize CAGR to percentage form.
+
+        Accepts both decimal form (e.g., 0.1736 for 17.36%) and
+        percentage form (e.g., 17.36 for 17.36%). Always returns
+        percentage form for consistent threshold comparisons.
+        """
+        if value is None:
+            return None
+        if value != 0 and abs(value) < 1:
+            # Decimal form detected (e.g., 0.1736) - convert to percentage
+            return value * 100
+        return value
+
     def __init__(
         self,
         # Historical trend data (optional, for trend analysis)
@@ -184,8 +199,8 @@ class ValueTrapDetector(BaseValuation):
         Initialize Value Trap Detector.
 
         Args:
-            revenue_cagr_3y: 3-year revenue CAGR (optional)
-            revenue_cagr_5y: 5-year revenue CAGR (optional)
+            revenue_cagr_3y: 3-year revenue CAGR (decimal or percentage, e.g., 0.05 or 5.0)
+            revenue_cagr_5y: 5-year revenue CAGR (decimal or percentage, e.g., 0.1736 or 17.36)
             margin_trend: Gross margin trend direction
             roe_trend: ROE trend direction
             market_share_trend: Market share trend direction
@@ -196,8 +211,8 @@ class ValueTrapDetector(BaseValuation):
             high_payout_threshold: Payout ratio above this is risky
             negative_income_years: Years of negative net income
         """
-        self.revenue_cagr_3y = revenue_cagr_3y
-        self.revenue_cagr_5y = revenue_cagr_5y
+        self.revenue_cagr_3y = self._normalize_cagr(revenue_cagr_3y)
+        self.revenue_cagr_5y = self._normalize_cagr(revenue_cagr_5y)
         self.margin_trend = margin_trend
         self.roe_trend = roe_trend
         self.market_share_trend = market_share_trend
@@ -964,7 +979,7 @@ def detect_value_trap(
 
     Args:
         stock: Stock object to analyze
-        revenue_cagr_5y: 5-year revenue CAGR (optional)
+        revenue_cagr_5y: 5-year revenue CAGR (decimal or percentage, e.g., 0.1736 or 17.36)
         margin_trend: "expanding", "stable", or "compressing"
         roe_trend: "improving", "stable", or "declining"
         industry: Industry classification for AI risk
