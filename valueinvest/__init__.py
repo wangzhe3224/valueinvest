@@ -18,6 +18,9 @@ Core Features:
     - Insider trading tracking
     - Buyback analysis
     - Cyclical stock analysis
+    - Economic moat scoring
+    - ROIC vs WACC analysis
+    - Capital allocation quality
 
 For AI Agents:
     See AGENTS.md for command-first task templates and quick reference.
@@ -42,6 +45,14 @@ from .valuation.mscore import calculate_m_score
 # Convenience functions
 from .valuation.quality import calculate_f_score
 
+# Economic analysis
+from .moat.engine import MoatAnalysisEngine
+from .moat.base import MoatResult
+from .roic.engine import EconomicProfitEngine
+from .roic.base import EconomicProfitResult
+from .capital.engine import CapitalAllocationEngine
+from .capital.base import CapitalAllocationResult
+
 __version__ = "1.0.0"
 
 __all__ = [
@@ -62,4 +73,11 @@ __all__ = [
     # Convenience
     "calculate_f_score",
     "calculate_m_score",
+    # Economic analysis
+    "MoatAnalysisEngine",
+    "MoatResult",
+    "EconomicProfitEngine",
+    "EconomicProfitResult",
+    "CapitalAllocationEngine",
+    "CapitalAllocationResult",
 ]

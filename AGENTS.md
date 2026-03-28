@@ -389,3 +389,103 @@ print(f"支持的市场: {NewsRegistry.get_supported_markets()}")
 | `cyclical_pe` | CyclicalPEValuation | 周期 PE |
 | `cyclical_fcf` | CyclicalFCFValuation | 周期 FCF |
 | `cyclical_dividend` | CyclicalDividendValuation | 周期股息 |
+
+---
+
+## 8. 经济分析模块
+
+### ROIC vs WACC — 经济利润分析
+
+判断公司是否在创造或毁灭经济价值。ROIC > WACC = 创造价值。
+
+```python
+from valueinvest.roic import analyze_economic_profit
+
+ep = analyze_economic_profit(stock)
+print(ep.to_summary())
+# EP(AAPL): ROIC=25.3% | WACC=9.5% | Spread=+15.8pp | VALUE CREATED
+
+# 提供 beta 获取更精确的 WACC（CAPM 方法）
+ep = analyze_economic_profit(stock, beta=1.2)
+```
+
+关键输出字段：
+- `roic_result.roic` — ROIC 百分比
+- `wacc_result.wacc` — WACC 百分比
+- `roic_wacc_spread` — 利差（正=创造价值）
+- `economic_profit` — 经济利润绝对值
+- `value_created` — 是否创造价值
+
+### 经济护城河评分
+
+系统评估竞争优势强度，基于 11 个财务信号和 5 个维度。
+
+```python
+from valueinvest.moat import analyze_moat
+
+moat = analyze_moat(stock)
+print(moat.to_summary())
+# Moat(AAPL): Score=72/100 | Type=WIDE | Signals=10/11
+
+# 组合使用：传入预计算的 ROIC/WACC 提高准确性
+ep = analyze_economic_profit(stock)
+moat = analyze_moat(stock, roic=ep.roic_result.roic, wacc=ep.wacc_result.wacc)
+```
+
+护城河类型（`moat_type`）：
+- `VERY_WIDE` (≥75) — 极强护城河
+- `WIDE` (≥55) — 强护城河
+- `NARROW` (≥35) — 窄护城河
+- `NONE` (<35) — 无明显护城河
+
+5 个评分维度：盈利能力(30%)、效率(20%)、增长(20%)、市场地位(15%)、财务堡垒(15%)
+
+### 资本配置质量评分
+
+评估管理层资本配置效率：分红、回购、再投资、资产负债表管理。
+
+```python
+from valueinvest.capital import analyze_capital_allocation
+
+cap = analyze_capital_allocation(stock)
+print(cap.to_summary())
+# CapitalAlloc(AAPL): Score=68/100 | Rating=GOOD | ShareholderYield=4.5%
+
+# 组合使用：传入 ROIC 提高再投资效率评估
+ep = analyze_economic_profit(stock)
+cap = analyze_capital_allocation(stock, roic=ep.roic_result.roic)
+```
+
+评级（`rating`）：
+- `EXCELLENT` (≥80) — 卓越的资本配置
+- `GOOD` (≥60) — 股东友好
+- `ADEQUATE` (≥40) — 中规中矩
+- `POOR` (≥25) — 令人担忧
+- `DESTRUCTIVE` (<25) — 破坏价值
+
+4 个评分维度：股东回报(35%)、再投资(25%)、资产负债表(20%)、稀释(20%)
+
+### 三模块组合使用
+
+```python
+from valueinvest import Stock
+from valueinvest.roic import analyze_economic_profit
+from valueinvest.moat import analyze_moat
+from valueinvest.capital import analyze_capital_allocation
+
+stock = Stock.from_api("AAPL")
+
+# 1. 先算经济利润（其他模块可以引用）
+ep = analyze_economic_profit(stock)
+
+# 2. 护城河分析（传入 ROIC/WACC 提高准确性）
+moat = analyze_moat(stock, roic=ep.roic_result.roic, wacc=ep.wacc_result.wacc)
+
+# 3. 资本配置分析（传入 ROIC 提高再投资评估）
+cap = analyze_capital_allocation(stock, roic=ep.roic_result.roic)
+
+# 综合判断
+print(f"护城河: {moat.moat_type.value} ({moat.moat_score:.0f}/100)")
+print(f"经济价值: {'创造' if ep.value_created else '毁灭'} (利差 {ep.roic_wacc_spread:+.1f}pp)")
+print(f"资本配置: {cap.rating.value} ({cap.overall_score:.0f}/100)")
+```

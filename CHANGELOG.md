@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **ROIC vs WACC module** (`valueinvest/roic/`): Economic profit analysis with `analyze_economic_profit()`. Supports Simplified and CAPM WACC methods.
+- **Economic Moat module** (`valueinvest/moat/`): Competitive advantage scoring with `analyze_moat()`. 11 signals across 5 categories, composite 0-100 score with moat type classification.
+- **Capital Allocation module** (`valueinvest/capital/`): Management quality scoring with `analyze_capital_allocation()`. 12 signals across 4 categories (dividend, reinvestment, balance sheet, dilution).
+
+### Fixed
+- **Moat/Capital engines**: Fixed TypeError when passing optional kwargs to signal functions. Now inspects each function's signature before passing kwargs.
+
+### Added
 - **AGENTS.md**: Agent-oriented quick reference with common patterns, decision points, data quality checks, and pitfall warnings
 - **Stock.__repr__()**: Concise one-line string representation for quick debugging
 - **Stock.summary()**: Structured multi-line data summary with data quality hints

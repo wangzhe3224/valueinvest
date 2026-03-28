@@ -776,6 +776,19 @@ Automatic classification based on ticker and financials:
 valueinvest/
 ├── exceptions.py            # Custom exceptions (DataFetchError, etc.)
 ├── stock.py                 # Stock dataclass, StockHistory
+├── moat/                    # Economic moat scoring
+│   ├── base.py              # MoatResult, MoatSignal, MoatType enum
+│   ├── signals.py           # 11 moat signal functions
+│   └── engine.py            # MoatAnalysisEngine
+├── roic/                    # ROIC vs WACC analysis
+│   ├── base.py              # ROICResult, WACCResult, EconomicProfitResult
+│   ├── roic.py              # ROIC calculation
+│   ├── wacc.py              # WACC calculation
+│   └── engine.py            # EconomicProfitEngine
+├── capital/                 # Capital allocation quality
+│   ├── base.py              # CapitalAllocationResult, AllocationSignal
+│   ├── signals.py           # 12 allocation signal functions
+│   └── engine.py            # CapitalAllocationEngine
 ├── valuation/
 │   ├── base.py              # Base classes
 │   ├── engine.py            # Unified engine

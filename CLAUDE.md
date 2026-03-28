@@ -12,6 +12,8 @@ Do not create scripts file just for analysis 1 stock, just use bash or /tmp to s
 
 如果代码变化，检查是否需要更新 readme 文件或相关说明。同时更新changelog
 
+代码保持低耦合性、可组合性。
+
 ## 报告规则
 
 运行代码中生成报告过程中，如果出现问题，及时修复源代码。
