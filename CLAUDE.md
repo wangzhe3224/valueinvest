@@ -14,6 +14,8 @@ Do not create scripts file just for analysis 1 stock, just use bash or /tmp to s
 
 代码保持低耦合性、可组合性。
 
+use uv to manage python env and package.
+
 ## 报告规则
 
 运行代码中生成报告过程中，如果出现问题，及时修复源代码。

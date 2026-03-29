@@ -4,24 +4,24 @@ build-backend = "hatchling.build"
 
 [project]
 name = "valueinvest"
-version = "0.1.0"
+version = "1.1.0"
 description = "A modular Python library for comprehensive stock valuation using multiple methodologies"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 authors = [
     { name = "ValueInvest Contributors" }
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Financial and Insurance Industry",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Typing :: Typed",
 ]
 dependencies = []
@@ -55,15 +55,15 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-repo/valueinvest"
-Documentation = "https://github.com/your-repo/valueinvest#readme"
-Repository = "https://github.com/your-repo/valueinvest"
+Homepage = "https://github.com/wangzhe3224/valueinvest"
+Documentation = "https://github.com/wangzhe3224/valueinvest#readme"
+Repository = "https://github.com/wangzhe3224/valueinvest"
 
 [tool.hatch.build.targets.wheel]
 packages = ["valueinvest"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -79,7 +79,7 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]

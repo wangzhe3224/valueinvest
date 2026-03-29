@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Updated `.venv` to Python 3.14.3
+- Minimum Python version requirement raised from 3.9 to 3.11 (`requires-python = ">=3.11"`)
+- Updated tooling targets (mypy, ruff) to Python 3.11+
+
 ## [1.1.0] - 2026-03-28
 
 ### Added

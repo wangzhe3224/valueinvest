@@ -32,19 +32,22 @@ A modular Python library for comprehensive stock valuation using multiple method
 ## Installation
 
 ```bash
-# Create virtual environment
-uv venv --python 3.11
-source .venv/bin/activate
+# Install from PyPI
+pip install valueinvest                # Core library (no data sources)
 
 # Install with data sources
-pip install -e ".[fetch]"      # All data sources
-pip install -e ".[us]"         # US stocks only (yfinance)
-pip install -e ".[ashare]"     # A-shares only (AKShare, free)
-pip install -e ".[tushare]"    # A-shares with Tushare (requires token)
-pip install -e ".[learn]"      # Jupyter notebooks + visualization
+pip install "valueinvest[fetch]"       # All data sources
+pip install "valueinvest[us]"          # US stocks only (yfinance)
+pip install "valueinvest[ashare]"      # A-shares only (AKShare, free)
+pip install "valueinvest[tushare]"     # A-shares with Tushare (requires token)
 
-# For learning notebooks (recommended)
-pip install -e ".[learn,fetch]"  # Learning + all data sources
+# For development (from source)
+git clone https://github.com/wangzhe3224/valueinvest.git
+cd valueinvest
+uv venv --python 3.11
+source .venv/bin/activate
+pip install -e ".[fetch]"             # All data sources
+pip install -e ".[learn,fetch]"       # Learning + all data sources
 
 ## Quick Start
 
