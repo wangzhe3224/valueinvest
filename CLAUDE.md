@@ -15,13 +15,3 @@ Do not create scripts file just for analysis 1 stock, just use bash or /tmp to s
 代码保持低耦合性、可组合性。
 
 use uv to manage python env and package.
-
-## 报告规则
-
-运行代码中生成报告过程中，如果出现问题，及时修复源代码。
-
-报告中的数据应该使用 API 收集最新数据，如果缺少应该上网搜索尝试获得
-
-写md报告时候，开头结尾都加对本库的引用: https://github.com/wangzhe3224/valueinvest
-
-md报告写入`reports` 文件夹，如果有股票 ticker，放入对应的 ticker 文件夹
