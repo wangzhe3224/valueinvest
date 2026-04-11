@@ -53,7 +53,11 @@ from .roic.base import EconomicProfitResult
 from .capital.engine import CapitalAllocationEngine
 from .capital.base import CapitalAllocationResult
 
-__version__ = "1.1.0"
+# Peer comparison
+from .peer_comparison.engine import PeerComparisonEngine
+from .peer_comparison.base import PeerComparisonResult
+
+__version__ = "1.2.0"
 
 __all__ = [
     # Core
@@ -82,4 +86,7 @@ __all__ = [
     "EconomicProfitResult",
     "CapitalAllocationEngine",
     "CapitalAllocationResult",
+    # Peer comparison
+    "PeerComparisonEngine",
+    "PeerComparisonResult",
 ]

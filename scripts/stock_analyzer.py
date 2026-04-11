@@ -33,6 +33,7 @@ def analyze_stock(
     include_fcf: bool = False,
     fcf_years: int = 5,
     include_cyclical: bool = False,
+    include_peers: bool = False,
 ):
     print(f"\n正在获取 {ticker} 基本面数据...")
 
@@ -104,16 +105,16 @@ def analyze_stock(
                 CycleType,
                 MarketType,
             )
-            
+
             # 检测市场类型
             if ticker.isdigit() and len(ticker) == 6:
                 market = MarketType.A_SHARE
             else:
                 market = MarketType.US
-            
+
             # 检测周期类型
             cycle_type = CyclicalAnalysisEngine.detect_cycle_type(ticker, stock.name)
-            
+
             # 创建周期股数据
             cyclical_stock = CyclicalStock(
                 ticker=ticker,
@@ -133,17 +134,29 @@ def analyze_stock(
                 roe=stock.roe,
                 historical_pb=stock.historical_pb if hasattr(stock, 'historical_pb') else [],
             )
-            
+
             # 运行分析
             engine = CyclicalAnalysisEngine()
             cyclical_result = engine.analyze(cyclical_stock)
-            
+
             print(f"✓ 周期股分析完成")
         except Exception as e:
             print(f"警告: 无法进行周期股分析 - {e}")
 
+    peer_result = None
+    if include_peers:
+        print(f"正在分析 {ticker} 同行对比...")
+        try:
+            from valueinvest.peer_comparison import PeerComparisonEngine
+
+            engine = PeerComparisonEngine()
+            peer_result = engine.analyze(stock)
+            print(f"✓ 同行对比完成")
+        except Exception as e:
+            print(f"警告: 无法进行同行对比 - {e}")
+
     print_report(
-        stock, history, company_type, history_period, news_analysis, insider_result, buyback_result, fcf_result, cyclical_result
+        stock, history, company_type, history_period, news_analysis, insider_result, buyback_result, fcf_result, cyclical_result, peer_result
     )
 def detect_company_type(stock: Stock, history: StockHistory) -> str:
     UTILITIES_TICKERS = {
@@ -318,6 +331,7 @@ def print_report(
     buyback_result=None,
     fcf_result=None,
     cyclical_result=None,
+    peer_result=None,
 ):
     engine = ValuationEngine()
 
@@ -411,6 +425,17 @@ def print_report(
 
     if fcf_result and fcf_result.summary and fcf_result.summary.has_fcf_data:
         print_fcf_analysis(fcf_result, buyback_result.summary if buyback_result else None)
+
+    if peer_result and peer_result.has_sufficient_peers:
+        print_peer_comparison(peer_result, stock)
+    elif peer_result and not peer_result.has_sufficient_peers:
+        print("\n" + "=" * 70)
+        print("【同行对比】")
+        print("=" * 70)
+        print()
+        for w in peer_result.warnings:
+            print(f"  ⚠️ {w}")
+
     print("\n" + "=" * 70)
     print("【估值汇总】")
     print("=" * 70)
@@ -769,6 +794,66 @@ def print_fcf_analysis(fcf_result, buyback_summary=None):
     if summary.sbc_is_material:
         print(f"  ⚠️ SBC 占 FCF {summary.sbc_as_pct_of_fcf:.0f}%，股权稀释显著")
 
+def print_peer_comparison(peer_result, stock):
+    """Print peer comparison analysis section."""
+    print("\n" + "=" * 70)
+    print("【同行对比分析】")
+    print("=" * 70)
+    print()
+
+    print(f"  行业: {peer_result.industry_name}")
+    print(f"  同行数量: {peer_result.peer_count}")
+    print(f"  市值排名: #{peer_result.rank_in_peers} / {peer_result.peer_count + 1}")
+    print(f"  综合评分: {peer_result.composite_score:.0f}/100 ({peer_result.rating.value.upper()})")
+    print()
+
+    # Metric comparison table
+    print("【指标对比】")
+    print("| 指标 | 当前值 | 同行均值 | 同行中位 | 百分位 | 评估 |")
+    print("|------|--------|----------|----------|--------|------|")
+    for mc in peer_result.metric_comparisons:
+        if not mc.is_available:
+            continue
+        direction = "\u2191" if mc.direction.value == "higher_better" else "\u2193"
+        assessment = mc.assessment
+        print(
+            f"| {direction} {mc.metric_name:18} | {mc.target_value:>8.1f} | {mc.peer_avg:>8.1f} | {mc.peer_median:>8.1f} | {mc.percentile:>5.0f}th | {assessment:20} |"
+        )
+    print()
+
+    # Category scores
+    print("【分类评分】")
+    if peer_result.valuation_score > 0:
+        label = "低估值" if peer_result.valuation_score <= 30 else ("合理" if peer_result.valuation_score <= 60 else "偏高")
+        print(f"  估值评分: {peer_result.valuation_score:.0f}/100 ({label})")
+    if peer_result.profitability_score > 0:
+        label = "优秀" if peer_result.profitability_score >= 70 else ("一般" if peer_result.profitability_score >= 40 else "偏弱")
+        print(f"  盈利评分: {peer_result.profitability_score:.0f}/100 ({label})")
+    if peer_result.growth_score > 0:
+        label = "高增长" if peer_result.growth_score >= 70 else ("一般" if peer_result.growth_score >= 40 else "低增长")
+        print(f"  增长评分: {peer_result.growth_score:.0f}/100 ({label})")
+    print()
+
+    # Strengths and weaknesses
+    if peer_result.strengths:
+        print("【相对优势】")
+        for s in peer_result.strengths[:3]:
+            print(f"  ✅ {s}")
+        print()
+    if peer_result.weaknesses:
+        print("【相对劣势】")
+        for w in peer_result.weaknesses[:3]:
+            print(f"  ⚠️ {w}")
+        print()
+
+    # Analysis summary
+    if peer_result.analysis:
+        print("【分析要点】")
+        for a in peer_result.analysis:
+            print(f"  • {a}")
+        print()
+
+
 def get_type_label(company_type: str) -> str:
     labels = {
         "bank": "银行/金融",
@@ -829,6 +914,7 @@ def main():
     parser.add_argument("--fcf", action="store_true", help="包含自由现金流分析 (推荐与回购分析一起使用)")
     parser.add_argument("--fcf-years", type=int, default=5, help="FCF分析年数 (默认5)")
     parser.add_argument("--cyclical", "-c", action="store_true", help="周期股分析 (航运、钢铁、有色、能源等)")
+    parser.add_argument("--peers", action="store_true", help="包含同行对比分析")
 
     args = parser.parse_args()
 
@@ -855,6 +941,7 @@ def main():
         buyback_days=args.buyback_days,
         include_fcf=args.fcf,
         fcf_years=args.fcf_years,
+        include_peers=args.peers,
     )
 
 

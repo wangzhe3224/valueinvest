@@ -489,3 +489,45 @@ print(f"护城河: {moat.moat_type.value} ({moat.moat_score:.0f}/100)")
 print(f"经济价值: {'创造' if ep.value_created else '毁灭'} (利差 {ep.roic_wacc_spread:+.1f}pp)")
 print(f"资本配置: {cap.rating.value} ({cap.overall_score:.0f}/100)")
 ```
+
+### 同行对比分析
+
+将股票核心财务指标与同行业公司进行横向对比，评估相对估值、盈利能力和成长性。
+
+```python
+from valueinvest.peer_comparison import PeerComparisonEngine
+
+engine = PeerComparisonEngine()
+result = engine.analyze(stock)
+
+print(result.to_summary())
+# PeerComparison(600519): Score=55/100 | Rating=ABOVE_AVERAGE | Peers=15 | Industry=白酒
+
+# 查看各指标百分位
+for mc in result.metric_comparisons:
+    if mc.is_available:
+        print(f"  {mc.metric_name}: P{mc.percentile:.0f} ({mc.assessment})")
+
+# 分类评分
+print(f"估值评分: {result.valuation_score:.0f}")
+print(f"盈利评分: {result.profitability_score:.0f}")
+print(f"增长评分: {result.growth_score:.0f}")
+```
+
+美股无自动同行数据，需手动传入：
+
+```python
+from valueinvest.industry.base import PeerCompany
+from valueinvest.peer_comparison import PeerComparisonEngine
+
+peers = [
+    PeerCompany(ticker="MSFT", name="Microsoft", market_cap=2800e9,
+                pe_ratio=35, pb_ratio=12, roe=40, revenue=211e9, net_income=72e9),
+    PeerCompany(ticker="GOOGL", name="Alphabet", market_cap=1700e9,
+                pe_ratio=25, pb_ratio=6, roe=25, revenue=307e9, net_income=60e9),
+]
+engine = PeerComparisonEngine(peers=peers)
+result = engine.analyze(stock)
+```
+
+CLI 使用：`python scripts/stock_analyzer.py 600887 --peers`

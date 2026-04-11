@@ -48,11 +48,26 @@ class PeerCompany:
     change_pct: float = 0.0
     rank_in_industry: int = 0
     source: str = ""
+    # Enrichment fields (optional, default 0.0 for backward compatibility)
+    operating_margin: float = 0.0
+    net_margin: float = 0.0
+    revenue_growth: float = 0.0
+    ebitda: float = 0.0
+    debt_ratio: float = 0.0
 
     @property
     def is_profitable(self) -> bool:
         """Check if company is profitable."""
         return self.net_income > 0
+
+    @property
+    def effective_net_margin(self) -> float:
+        """Net margin, using explicit field or derived from revenue/net_income."""
+        if self.net_margin > 0:
+            return self.net_margin
+        if self.revenue > 0 and self.net_income != 0:
+            return (self.net_income / self.revenue) * 100
+        return 0.0
 
     @property
     def valuation_quality(self) -> str:

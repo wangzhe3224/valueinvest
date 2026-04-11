@@ -2,7 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.2.0] - 2026-04-11
+
+### Added
+- **Peer Comparison Analysis**: New `peer_comparison` module with `PeerComparisonEngine` for comparing a stock's financial metrics (PE, PB, ROE, margins, growth, market cap) against industry peers. Includes percentile ranking, composite scoring (0-100), and strengths/weaknesses identification.
+- **PeerCompany enrichment**: Added `operating_margin`, `net_margin`, `revenue_growth`, `ebitda`, `debt_ratio` fields and `effective_net_margin` property to `PeerCompany`.
+- **`--peers` CLI flag**: `stock_analyzer.py` now supports `--peers` for peer comparison output.
+- **Roadmap**: Added `roadmap.md` with planned features organized by category.
 
 ### Changed
 - Updated `.venv` to Python 3.14.3
