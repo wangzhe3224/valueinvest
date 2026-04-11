@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1] - 2026-04-11
+
+### Added
+- **Implied Growth Rate Analysis**: New `implied_growth` module with `ImpliedGrowthEngine` for deriving market-implied growth rates from current stock price using multiple methods (Reverse DCF, PEG, Gordon Growth, Earnings Yield), comparing with historical growth rates, and assessing reasonableness (0-100 score).
+
 ## [1.2.0] - 2026-04-11
 
 ### Added

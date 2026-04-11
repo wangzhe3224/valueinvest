@@ -57,7 +57,11 @@ from .capital.base import CapitalAllocationResult
 from .peer_comparison.engine import PeerComparisonEngine
 from .peer_comparison.base import PeerComparisonResult
 
-__version__ = "1.2.0"
+# Implied growth analysis
+from .implied_growth.engine import ImpliedGrowthEngine
+from .implied_growth.base import ImpliedGrowthResult
+
+__version__ = "1.2.1"
 
 __all__ = [
     # Core
@@ -89,4 +93,7 @@ __all__ = [
     # Peer comparison
     "PeerComparisonEngine",
     "PeerComparisonResult",
+    # Implied growth analysis
+    "ImpliedGrowthEngine",
+    "ImpliedGrowthResult",
 ]

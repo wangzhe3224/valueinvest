@@ -28,6 +28,7 @@ A modular Python library for comprehensive stock valuation using multiple method
 - **Earnings Manipulation Detection**: Beneish M-Score for fraud risk assessment
 - **Relative Valuation**: PE/PB comparison vs historical and peer averages
 - **Cyclical Stock Analysis**: Cycle position scoring, cyclical-adjusted valuation (PB/PE/FCF), market-specific strategies
+- **Implied Growth Analysis**: Market-implied growth rates from multiple methods, historical comparison, reasonableness scoring
 - **QFQ/HFQ Price Adjustment**: Proper price adjustment for valuation comparison and real returns
 ## Installation
 
@@ -800,6 +801,10 @@ valueinvest/
 │   ├── base.py              # CapitalAllocationResult, AllocationSignal
 │   ├── signals.py           # 12 allocation signal functions
 │   └── engine.py            # CapitalAllocationEngine
+├── implied_growth/          # Implied growth rate analysis
+│   ├── base.py              # ImpliedGrowthResult, GrowthComparison, GrowthReasonableness
+│   ├── analyzer.py          # Reverse DCF, PEG, Gordon Growth, Earnings Yield
+│   └── engine.py            # ImpliedGrowthEngine
 ├── valuation/
 │   ├── base.py              # Base classes
 │   ├── engine.py            # Unified engine
