@@ -61,6 +61,10 @@ from .peer_comparison.base import PeerComparisonResult
 from .implied_growth.engine import ImpliedGrowthEngine
 from .implied_growth.base import ImpliedGrowthResult
 
+# Accounting red flags
+from .redflags.engine import AccountingRedFlagsEngine
+from .redflags.base import RedFlagResult
+
 __version__ = "1.2.1"
 
 __all__ = [
@@ -96,4 +100,7 @@ __all__ = [
     # Implied growth analysis
     "ImpliedGrowthEngine",
     "ImpliedGrowthResult",
+    # Accounting red flags
+    "AccountingRedFlagsEngine",
+    "RedFlagResult",
 ]

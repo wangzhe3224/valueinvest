@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-04-20
+
+### Added
+- **Accounting Red Flags Detection**: New `redflags` module with `AccountingRedFlagsEngine` for detecting accounting manipulation risks across 11 signals in 4 categories (earnings quality 30%, revenue recognition 25%, asset & working capital 25%, capital structure 20%). Higher score = more red flags. Includes risk level classification (CLEAN through SEVERE_FLAGS).
+
 ## [1.2.1] - 2026-04-11
 
 ### Added
