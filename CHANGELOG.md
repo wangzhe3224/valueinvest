@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.2] - 2026-05-02
+
+### Fixed
+- **YFinanceFetcher FCF**: Prefer cashflow statement "Free Cash Flow" line over `info['freeCashflow']` which can be significantly inaccurate (e.g. META FY2025: info reported \$25B vs actual \$46B). Falls back to OCF + CapEx calculation if "Free Cash Flow" line is unavailable.
+
+## [1.3.1] - 2026-04-23
+
+### Fixed
+- **CyclicalStock.from_stock**: Fixed `fcf_yield` calculation — was dividing total FCF by price instead of FCF per share by price, resulting in inflated values.
+- **CyclicalStock.from_stock**: Added missing `fcf_per_share` field mapping, causing FCF valuation to return near-zero values.
+
 ## [1.3.0] - 2026-04-20
 
 ### Added

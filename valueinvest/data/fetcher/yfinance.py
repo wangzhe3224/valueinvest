@@ -256,7 +256,9 @@ class YFinanceFetcher(BaseFetcher):
             except (KeyError, IndexError, TypeError):
                 pass
 
-            # Cash flow data (fallback for TTM values from info)
+            # Cash flow data — prefer cashflow statement over info TTM values
+            # because yfinance info['freeCashflow'] can be inaccurate
+            # (e.g. META FY2025: info says $25B vs cashflow statement $46B)
             try:
                 if not cashflow.empty:
                     if "Operating Cash Flow" in cashflow.index:
@@ -265,8 +267,13 @@ class YFinanceFetcher(BaseFetcher):
                             data["operating_cash_flow"] = ocf_val
                     if "Free Cash Flow" in cashflow.index:
                         fcf_val = float(cashflow.loc["Free Cash Flow"].iloc[0])
-                        if data.get("fcf", 0) == 0:
-                            data["fcf"] = fcf_val
+                        # Always prefer cashflow statement FCF over info TTM
+                        data["fcf"] = fcf_val
+                    elif "Operating Cash Flow" in cashflow.index and "Capital Expenditure" in cashflow.index:
+                        # Calculate FCF = OCF + CapEx (CapEx is negative)
+                        ocf = float(cashflow.loc["Operating Cash Flow"].iloc[0])
+                        capex = float(cashflow.loc["Capital Expenditure"].iloc[0])
+                        data["fcf"] = ocf + capex
                     if "Capital Expenditure" in cashflow.index:
                         # Store as positive value representing expenditure
                         raw_capex = float(cashflow.loc["Capital Expenditure"].iloc[0])

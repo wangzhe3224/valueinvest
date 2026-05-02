@@ -220,8 +220,9 @@ class CyclicalStock:
             pe=stock.pe_ratio if hasattr(stock, "pe_ratio") else 0.0,
             bvps=stock.bvps,
             eps=stock.eps,
-            fcf_yield=stock.fcf / stock.current_price
-            if stock.current_price > 0 and stock.fcf > 0
+            fcf_per_share=stock.fcf_per_share,
+            fcf_yield=stock.fcf_per_share / stock.current_price
+            if stock.current_price > 0 and stock.fcf_per_share > 0
             else 0.0,
             dividend_yield=stock.dividend_yield,
             # 财务质量
