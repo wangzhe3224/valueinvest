@@ -4,11 +4,17 @@ A modular Python library for comprehensive stock valuation using multiple method
 
 ## ✨ Recent Updates
 
-**2026-03-28**: Major data quality and valuation fixes
-- Fixed 12+ fields returning None/0 from `Stock.from_api()` (operating_cash_flow, ebitda, sector, inventory, prior_* data, etc.)
-- Fixed Graham Number, Magic Formula, and Value Trap detector edge cases
-- Added `revenue_cagr_5y`, `earnings_cagr_5y`, and other computed properties
-- See [CHANGELOG.md](CHANGELOG.md) for detailed changes
+**v1.3.2** (2026-05-02): Fixed YFinanceFetcher FCF — now prefers cashflow statement "Free Cash Flow" line over `info['freeCashflow']` for accuracy.
+
+**v1.3.1** (2026-04-23): Fixed `fcf_yield` and `fcf_per_share` in CyclicalStock.
+
+**v1.3.0** (2026-04-20): Added Accounting Red Flags Detection — 11 signals across 4 categories (earnings quality, revenue recognition, asset & working capital, capital structure).
+
+**v1.2.1** (2026-04-11): Added Implied Growth Rate Analysis — derive market-implied growth from current price using Reverse DCF, PEG, Gordon Growth, and Earnings Yield.
+
+**v1.2.0** (2026-04-11): Added Peer Comparison Analysis, CLI `--peers` flag, and roadmap.
+
+See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 ## Features
 
