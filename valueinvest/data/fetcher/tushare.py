@@ -253,18 +253,24 @@ class TushareFetcher(BaseFetcher):
                 "revenue_cagr_5y": 0, "earnings_cagr_5y": 0,
             }
 
-            # === Daily basic: PE, PB, market cap, shares ===
+            # === Daily basic: PE(TTM), PB, market cap, shares ===
             try:
                 basic = api.daily_basic(ts_code=ts_code,
-                    fields="pe,pb,total_mv,circ_mv,total_share", limit=1)
+                    fields="pe,pb,pe_ttm,total_mv,circ_mv,total_share", limit=1)
                 if not basic.empty:
                     row = basic.iloc[0]
-                    data["pe_ratio"] = float(row.get("pe", 0) or 0)
                     data["pb_ratio"] = float(row.get("pb", 0) or 0)
                     data["market_cap"] = float(row.get("total_mv", 0) or 0) * 1e4
                     total_share = float(row.get("total_share", 0) or 0)
                     if total_share > 0:
                         data["shares_outstanding"] = total_share * 1e4
+                    # Prefer PE_TTM over static PE
+                    pe_ttm = float(row.get("pe_ttm", 0) or 0)
+                    pe_static = float(row.get("pe", 0) or 0)
+                    if pe_ttm > 0:
+                        data["pe_ratio"] = pe_ttm
+                    elif pe_static > 0:
+                        data["pe_ratio"] = pe_static
             except Exception:
                 pass
 
@@ -435,6 +441,19 @@ class TushareFetcher(BaseFetcher):
 
         # fundamentals last so shares_outstanding from daily_basic wins over quote's 0
         combined = {**quote.data, **fundamentals.data}
+
+        # Derive TTM EPS from PE_TTM (more reliable than single-quarter EPS)
+        pe_ttm = combined.get("pe_ratio", 0)  # already set to pe_ttm in daily_basic section
+        cur_price = combined.get("current_price", 0)
+        if pe_ttm > 0 and cur_price > 0:
+            ttm_eps = cur_price / pe_ttm
+            single_q_eps = combined.get("eps", 0)
+            if ttm_eps > 0 and single_q_eps > 0 and ttm_eps != single_q_eps:
+                scale = ttm_eps / single_q_eps
+                combined["eps"] = ttm_eps
+                combined["revenue"] = combined["revenue"] * scale
+                combined["net_income"] = combined["net_income"] * scale
+
         missing = [k for k, v in combined.items() if v is None or v == 0]
 
         return FetchResult(
