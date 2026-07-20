@@ -1,7 +1,7 @@
 import os
 import re
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -293,25 +293,50 @@ class TushareFetcher(BaseFetcher):
             except Exception:
                 pass
 
-            # === Income statement ===
+            # === Income statement: decompose cumulative into single-quarter, then TTM ===
             cur_end_date = ""
             try:
+                # Fetch 8 periods to have enough data for TTM decomposition
                 income = api.income(ts_code=ts_code,
-                    fields="end_date,revenue,n_income,basic_eps,operate_profit,"
-                           "fin_exp_int_exp,sell_exp,admin_exp,rd_exp",
-                    limit=1)
-                if not income.empty:
-                    row = income.iloc[0]
-                    data["revenue"] = float(row.get("revenue", 0) or 0)
-                    data["net_income"] = float(row.get("n_income", 0) or 0)
-                    data["eps"] = float(row.get("basic_eps", 0) or 0)
-                    # Tushare: fin_exp_int_exp is interest expense within financial expenses
-                    data["interest_expense"] = abs(float(row.get("fin_exp_int_exp", 0) or 0))
-                    cur_end_date = str(row.get("end_date", ""))
-                    # ebit from income if fina didn't have it
+                    fields="end_date,end_type,revenue,n_income,basic_eps,operate_profit,"
+                           "fin_exp_int_exp",
+                    limit=8)
+                if not income.empty and len(income) >= 2:
+                    # Deduplicate: keep first occurrence per (end_date, end_type)
+                    income = income.drop_duplicates(subset=["end_date"]).sort_values("end_date")
+                    # Decompose cumulative Chinese accounting data into single quarters
+                    # end_type: 1=Q1(standalone), 2=semi-annual(cumul), 3=Q3(cumul), 4=annual(cumul)
+                    quarters_data: List[Dict[str, float]] = []
+                    prev_row = None
+                    for _, row in income.iterrows():
+                        etype = str(row.get("end_type", ""))
+                        if etype == "1":
+                            quarters_data.append({
+                                "revenue": float(row.get("revenue", 0) or 0),
+                                "n_income": float(row.get("n_income", 0) or 0),
+                                "basic_eps": float(row.get("basic_eps", 0) or 0),
+                            })
+                        elif prev_row is not None and etype in ("2", "3", "4"):
+                            q_rev = float(row.get("revenue", 0) or 0) - float(prev_row.get("revenue", 0) or 0)
+                            q_ni = float(row.get("n_income", 0) or 0) - float(prev_row.get("n_income", 0) or 0)
+                            q_eps = float(row.get("basic_eps", 0) or 0) - float(prev_row.get("basic_eps", 0) or 0)
+                            if q_rev >= 0:
+                                quarters_data.append({"revenue": q_rev, "n_income": q_ni, "basic_eps": q_eps})
+                        prev_row = row
+
+                    # TTM = sum of last 4 single quarters
+                    ttm_quarters = quarters_data[-4:] if len(quarters_data) >= 4 else quarters_data
+                    data["revenue"] = sum(q["revenue"] for q in ttm_quarters)
+                    data["net_income"] = sum(q["n_income"] for q in ttm_quarters)
+                    data["eps"] = sum(q["basic_eps"] for q in ttm_quarters)
+
+                    # Latest quarter's period-specific data (not cumulative-sensitive)
+                    latest = income.sort_values("end_date", ascending=False).iloc[0]
+                    data["interest_expense"] = abs(float(latest.get("fin_exp_int_exp", 0) or 0))
+                    cur_end_date = str(latest.get("end_date", ""))
                     if data["ebit"] == 0:
-                        op = float(row.get("operate_profit", 0) or 0)
-                        ie = abs(float(row.get("fin_exp_int_exp", 0) or 0))
+                        op = float(latest.get("operate_profit", 0) or 0)
+                        ie = abs(float(latest.get("fin_exp_int_exp", 0) or 0))
                         if op != 0:
                             data["ebit"] = op + ie
             except Exception:
@@ -357,29 +382,34 @@ class TushareFetcher(BaseFetcher):
             except Exception:
                 pass
 
-            # === Cash flow: use Tushare's pre-computed free_cashflow ===
+            # === Cash flow: decompose cumulative into single-quarter, then TTM ===
             try:
                 cashflow = api.cashflow(
                     ts_code=ts_code,
-                    fields="end_date,n_cashflow_act,free_cashflow,c_pay_acq_const_fiolta",
-                    limit=2,
+                    fields="end_date,end_type,n_cashflow_act,c_pay_acq_const_fiolta",
+                    limit=8,
                 )
-                if not cashflow.empty:
-                    # Prefer the report matching fina_indicator's end_date
-                    cf_match = cashflow
-                    if fina_end_date:
-                        matched = cashflow[cashflow["end_date"] == fina_end_date]
-                        if not matched.empty:
-                            cf_match = matched
-                    row = cf_match.iloc[0]
-                    fcf_val = float(row.get("free_cashflow", 0) or 0)
-                    if fcf_val != 0:
-                        data["fcf"] = fcf_val
-                    else:
-                        # Compute manually
+                if not cashflow.empty and len(cashflow) >= 2:
+                    cashflow = cashflow.drop_duplicates(subset=["end_date"]).sort_values("end_date")
+                    # Decompose cumulative into single quarters, compute FCF = OCF - CapEx
+                    cf_quarters: List[float] = []
+                    prev_row = None
+                    for _, row in cashflow.iterrows():
+                        etype = str(row.get("end_type", ""))
                         ocf = float(row.get("n_cashflow_act", 0) or 0)
-                        capex = abs(float(row.get("c_pay_acq_const_fiolta", 0) or 0))
-                        data["fcf"] = ocf - capex
+                        capex = float(row.get("c_pay_acq_const_fiolta", 0) or 0)
+                        if etype == "1":
+                            cf_quarters.append(ocf - abs(capex))
+                        elif prev_row is not None and etype in ("2", "3", "4"):
+                            pocf = float(prev_row.get("n_cashflow_act", 0) or 0)
+                            pca = float(prev_row.get("c_pay_acq_const_fiolta", 0) or 0)
+                            q_ocf = ocf - pocf
+                            q_capex = capex - pca
+                            cf_quarters.append(q_ocf - abs(q_capex))
+                        prev_row = row
+
+                    ttm_cf = cf_quarters[-4:] if len(cf_quarters) >= 4 else cf_quarters
+                    data["fcf"] = sum(ttm_cf)
             except Exception:
                 pass
 
@@ -442,17 +472,14 @@ class TushareFetcher(BaseFetcher):
         # fundamentals last so shares_outstanding from daily_basic wins over quote's 0
         combined = {**quote.data, **fundamentals.data}
 
-        # Derive TTM EPS from PE_TTM (more reliable than single-quarter EPS)
+        # Derive TTM EPS from PE_TTM (most reliable EPS, better than 4Q sum)
         pe_ttm = combined.get("pe_ratio", 0)  # already set to pe_ttm in daily_basic section
         cur_price = combined.get("current_price", 0)
         if pe_ttm > 0 and cur_price > 0:
             ttm_eps = cur_price / pe_ttm
-            single_q_eps = combined.get("eps", 0)
-            if ttm_eps > 0 and single_q_eps > 0 and ttm_eps != single_q_eps:
-                scale = ttm_eps / single_q_eps
+            if ttm_eps > 0:
                 combined["eps"] = ttm_eps
-                combined["revenue"] = combined["revenue"] * scale
-                combined["net_income"] = combined["net_income"] * scale
+                # revenue/net_income are already TTM from 4-quarter sum, no scaling needed
 
         missing = [k for k, v in combined.items() if v is None or v == 0]
 
