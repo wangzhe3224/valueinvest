@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-07-25
+
+### Fixed
+- **YFinanceFetcher fundamentals crash on net-interest-income companies**: `fetch_fundamentals` used invalid pandas API `financials.loc.get(...)` (a `_LocIndexer` has no `.get`), raising `AttributeError` for companies that report "Interest Income" but no "Interest Expense" line (e.g. GRMN and other debt-free / net-cash firms). The `AttributeError` escaped the narrow `except (KeyError, IndexError, TypeError)` and nuked the entire fetch, returning `data={}` — so downstream `fetch_stock_data.py` reported zero revenue/NI/EPS and only 2 valuation methods ran. Fixed to use guarded `.loc[...]` access, and broadened the income-statement / balance-sheet / cashflow `except` clauses to also catch `AttributeError` so one bad line can no longer wipe a whole fetch.
+
 ## [1.5.0] - 2026-06-12
 
 ### Added

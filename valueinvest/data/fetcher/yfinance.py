@@ -177,19 +177,21 @@ class YFinanceFetcher(BaseFetcher):
                                 data["interest_expense"] = abs(float(val))
                                 break
                     if data.get("interest_expense", 0) == 0 and "Interest Income" in financials.index:
-                        # Net interest: try to find both expense and income
-                        ie_series = financials.loc.get("Interest Expense")
-                        ii_series = financials.loc.get("Interest Income")
+                        # Net interest: try to find both expense and income.
+                        # NOTE: must guard with `in financials.index` then use `.loc[...]`;
+                        # `.loc.get(...)` is invalid pandas API (`_LocIndexer` has no `.get`)
+                        # and raises AttributeError, which previously escaped the narrow
+                        # except below and nuked the ENTIRE fundamentals fetch (returned {}).
                         ie_val = 0.0
                         ii_val = 0.0
-                        if ie_series is not None:
-                            for val in ie_series:
-                                if val == val:
+                        if "Interest Expense" in financials.index:
+                            for val in financials.loc["Interest Expense"]:
+                                if val == val:  # NaN check (NaN != NaN)
                                     ie_val = float(val)
                                     break
-                        if ii_series is not None:
-                            for val in ii_series:
-                                if val == val:
+                        if "Interest Income" in financials.index:
+                            for val in financials.loc["Interest Income"]:
+                                if val == val:  # NaN check (NaN != NaN)
                                     ii_val = float(val)
                                     break
                         if ie_val != 0 or ii_val != 0:
@@ -200,7 +202,7 @@ class YFinanceFetcher(BaseFetcher):
                         pretax = float(financials.loc["Pretax Income"].iloc[0])
                         if pretax > 0 and tax > 0:
                             data["tax_rate"] = round((tax / pretax) * 100, 2)
-            except (KeyError, IndexError, TypeError):
+            except (KeyError, IndexError, TypeError, AttributeError):
                 pass
 
             # Balance sheet data
@@ -253,7 +255,7 @@ class YFinanceFetcher(BaseFetcher):
                         data["net_fixed_assets"] = float(
                             balance_sheet.loc["Net PPE"].iloc[0]
                         )
-            except (KeyError, IndexError, TypeError):
+            except (KeyError, IndexError, TypeError, AttributeError):
                 pass
 
             # Cash flow data — prefer cashflow statement over info TTM values
@@ -290,7 +292,7 @@ class YFinanceFetcher(BaseFetcher):
                         data["shares_issued"] = abs(float(cashflow.loc["Issuance Of Stock"].iloc[0]))
                     if "Repurchase Of Stock" in cashflow.index:
                         data["shares_repurchased"] = abs(float(cashflow.loc["Repurchase Of Stock"].iloc[0]))
-            except (KeyError, IndexError, TypeError):
+            except (KeyError, IndexError, TypeError, AttributeError):
                 pass
 
             # Compute net_debt from balance sheet if yfinance doesn't provide it
@@ -378,7 +380,7 @@ class YFinanceFetcher(BaseFetcher):
                     # Prior asset turnover
                     if prior_total_assets > 0 and prior_revenue != 0:
                         data["prior_asset_turnover"] = prior_revenue / prior_total_assets
-            except (KeyError, IndexError, TypeError):
+            except (KeyError, IndexError, TypeError, AttributeError):
                 pass
 
             # 5-year CAGR calculations (use valid non-NaN values)
@@ -402,7 +404,7 @@ class YFinanceFetcher(BaseFetcher):
                         years = len(valid_incomes) - 1
                         e_cagr = (valid_incomes[0] / valid_incomes[-1]) ** (1 / years) - 1
                         data["earnings_cagr_5y"] = round(e_cagr * 100, 2)
-            except (KeyError, IndexError, TypeError, ZeroDivisionError):
+            except (KeyError, IndexError, TypeError, AttributeError, ZeroDivisionError):
                 pass
 
             # Historical PE/PB data for relative valuation (Task 1)
