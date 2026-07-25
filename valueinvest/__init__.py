@@ -69,7 +69,7 @@ from .redflags.base import RedFlagResult
 from .dupont.engine import DuPontAnalysisEngine
 from .dupont.base import DuPontResult
 
-__version__ = "1.4.0"
+__version__ = "1.5.1"
 
 __all__ = [
     # Core

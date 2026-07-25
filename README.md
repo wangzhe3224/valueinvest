@@ -4,6 +4,12 @@ A modular Python library for comprehensive stock valuation using multiple method
 
 ## ✨ Recent Updates
 
+**v1.5.1** (2026-07-25): Fixed YFinanceFetcher fundamentals crash on net-interest-income companies (e.g. GRMN) — invalid pandas API `financials.loc.get(...)` raised `AttributeError` and wiped the entire fetch; now uses guarded `.loc[...]` access with broadened `except` clauses.
+
+**v1.5.0** (2026-06-12): Added Earnings Patch module (`data.patch`) for injecting manually collected quarterly earnings data when API data is delayed — computes TTM metrics, stores data provenance, and exposes `--earnings-patch` CLI flag.
+
+**v1.4.0** (2026-05-31): Added DuPont ROE Decomposition (3-step & 5-step) and SOTP (Sum-of-the-Parts) Valuation for conglomerates; fixed YFinanceNewsFetcher ISO 8601 date parsing.
+
 **v1.3.2** (2026-05-02): Fixed YFinanceFetcher FCF — now prefers cashflow statement "Free Cash Flow" line over `info['freeCashflow']` for accuracy.
 
 **v1.3.1** (2026-04-23): Fixed `fcf_yield` and `fcf_per_share` in CyclicalStock.
