@@ -4,6 +4,8 @@ A modular Python library for comprehensive stock valuation using multiple method
 
 ## ✨ Recent Updates
 
+**v1.6.0** (2026-07-30): Added Trend & Growth-Signal Analysis — new `trend` module with multi-year quarterly series (revenue, gross/net margin, fcf yield, CCC) via stockanalysis/FMP/tushare fetchers (registry-pluggable), growth-signal scoring (CAGR, YoY acceleration, inflection, streak, stability) with CCC industry-applicability gating, and trend visualization (matplotlib `plot` extra); new `trend-analysis` skill.
+
 **v1.5.1** (2026-07-25): Fixed YFinanceFetcher fundamentals crash on net-interest-income companies (e.g. GRMN) — invalid pandas API `financials.loc.get(...)` raised `AttributeError` and wiped the entire fetch; now uses guarded `.loc[...]` access with broadened `except` clauses.
 
 **v1.5.0** (2026-06-12): Added Earnings Patch module (`data.patch`) for injecting manually collected quarterly earnings data when API data is delayed — computes TTM metrics, stores data provenance, and exposes `--earnings-patch` CLI flag.
