@@ -69,7 +69,19 @@ from .redflags.base import RedFlagResult
 from .dupont.engine import DuPontAnalysisEngine
 from .dupont.base import DuPontResult
 
-__version__ = "1.5.1"
+# Trend & growth-signal analysis
+from .trend import (
+    TrendRegistry,
+    TrendSignalEngine,
+    TrendSignalResult,
+    TrendSignal,
+    TrendMetric,
+    TrendRating,
+    fetch_quarterly_trends,
+    analyze_trend_signals,
+)
+
+__version__ = "1.6.0"
 
 __all__ = [
     # Core
@@ -110,4 +122,13 @@ __all__ = [
     # DuPont ROE decomposition
     "DuPontAnalysisEngine",
     "DuPontResult",
+    # Trend & growth-signal analysis
+    "TrendRegistry",
+    "TrendSignalEngine",
+    "TrendSignalResult",
+    "TrendSignal",
+    "TrendMetric",
+    "TrendRating",
+    "fetch_quarterly_trends",
+    "analyze_trend_signals",
 ]

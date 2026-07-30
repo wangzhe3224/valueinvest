@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-07-30
+
+### Added
+- **Trend & Growth-Signal Analysis**: New `trend` module for multi-year quarterly trend analysis. `fetch_quarterly_trends()` returns single-quarter + rolling-TTM series for revenue, gross margin, net margin, fcf yield, and CCC (cash conversion cycle) — via FMP (US, ~30y quarterly history) or Tushare (A-shares). `analyze_trend_signals()` scores growth signals (CAGR, YoY/QoQ acceleration, inflection, consecutive-streak, stability) into a composite trend rating with CCC industry-applicability gating. `plot_trends()` renders a multi-panel PNG (new `plot` optional dependency, matplotlib). Ships new `trend-analysis` skill.
+
 ## [1.5.1] - 2026-07-25
 
 ### Fixed

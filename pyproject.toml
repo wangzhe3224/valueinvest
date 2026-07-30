@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "valueinvest"
-version = "1.5.1"
+version = "1.6.0"
 description = "A modular Python library for comprehensive stock valuation using multiple methodologies"
 readme = "README.md"
 license = "MIT"
@@ -38,6 +38,7 @@ learn = [
     "jupyter>=1.0.0",
     "ipykernel>=6.0.0",
 ]
+plot = ["matplotlib>=3.5.0"]
 
 all = [
     "yfinance>=0.2.0",

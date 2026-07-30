@@ -42,6 +42,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 - **Cyclical Stock Analysis**: Cycle position scoring, cyclical-adjusted valuation (PB/PE/FCF), market-specific strategies
 - **Implied Growth Analysis**: Market-implied growth rates from multiple methods, historical comparison, reasonableness scoring
 - **QFQ/HFQ Price Adjustment**: Proper price adjustment for valuation comparison and real returns
+- **Trend & Growth-Signal Analysis**: Multi-year quarterly trend series (revenue, gross/net margin, fcf yield, cash conversion cycle) via FMP, with growth-signal scoring (CAGR, YoY/QoQ acceleration, inflection, streak, stability) and trend visualization
 ## Installation
 
 ```bash
@@ -53,6 +54,7 @@ pip install "valueinvest[fetch]"       # All data sources
 pip install "valueinvest[us]"          # US stocks only (yfinance)
 pip install "valueinvest[ashare]"      # A-shares only (AKShare, free)
 pip install "valueinvest[tushare]"     # A-shares with Tushare (requires token)
+pip install "valueinvest[plot]"        # Trend chart visualization (matplotlib)
 
 # For development (from source)
 git clone https://github.com/wangzhe3224/valueinvest.git
