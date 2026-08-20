@@ -179,7 +179,7 @@ class PeerComparisonEngine:
         for p in peers:
             val = getattr(p, metric_key, 0.0)
             if val == 0.0 and metric_key == "net_margin":
-                val = p.effective_net_margin
+                val = self._derive_net_margin(p)
             # Include zero for ROE (could be legitimately 0)
             if val != 0.0 or metric_key == "roe":
                 values.append(val)

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.1] - 2026-08-20
+
+### Fixed
+- **PeerComparisonEngine crash on net_margin**: `_get_peer_values` referenced non-existent `Stock.effective_net_margin` when a peer's derived net margin was 0, raising `AttributeError` and killing the whole peer comparison. Now derives it via `_derive_net_margin(p)`.
+
 ## [1.6.0] - 2026-07-30
 
 ### Added
