@@ -206,3 +206,65 @@ def test_strengths_and_weaknesses_populated():
     assert isinstance(r.strengths, list)
     assert isinstance(r.weaknesses, list)
     assert r.composite_score >= 0
+
+
+# --------------------------------------------------------------------------- #
+# Chart/extraction-only metrics (NET_INCOME / OPERATING_CASH_FLOW)
+def test_chart_only_metrics_extractable_single_and_ttm():
+    s = _series([100, 110, 120, 130, 140, 150])
+    # single-quarter extraction (net margin 0.2, ocf ratio 0.25 of revenue)
+    assert s.values(TrendMetric.NET_INCOME) == [
+        pytest.approx(0.2 * r) for r in [100, 110, 120, 130, 140, 150]
+    ]
+    assert s.values(TrendMetric.OPERATING_CASH_FLOW) == [
+        pytest.approx(0.25 * r) for r in [100, 110, 120, 130, 140, 150]
+    ]
+    # TTM extraction: last TTM = sum of last 4 single-quarter flows
+    assert s.ttm_values(TrendMetric.NET_INCOME)[-1] == pytest.approx(0.2 * 540)
+    assert s.ttm_values(TrendMetric.OPERATING_CASH_FLOW)[-1] == pytest.approx(0.25 * 540)
+    # TTM window itself sums net_income like revenue (see ttm_records)
+    assert s.ttm_records()[-1].net_income == pytest.approx(0.2 * 540)
+
+
+def test_ttm_yoy_values_and_none_head():
+    s = _series([100, 110, 120, 130, 140, 150, 160, 170])
+    yoy = s.ttm_yoy(TrendMetric.REVENUE)
+    # 8 quarters -> 5 TTM points -> 5 yoy slots, first 4 without a year-ago base
+    assert len(yoy) == 5
+    assert all(v is None for v in yoy[:4])
+    # TTM(3)=460 ... TTM(7)=620; yoy at slot 4 = 620/460 - 1
+    assert yoy[4] == pytest.approx((620 / 460 - 1) * 100)
+
+
+def test_ttm_yoy_none_on_nonpositive_base():
+    # net income decays through zero -> YoY stays numeric vs positive bases
+    # but turns None once the year-ago TTM base itself is <= 0
+    nis = [100, 100, 100, 100, 50, 0, -50, -50, -60, -70, -80, -90]
+    recs = []
+    for i, ni in enumerate(nis):
+        r = _rec(i, 100)
+        r.net_income = ni
+        recs.append(r)
+    s = TrendSeries(ticker="TEST", market=Market.US, source="synthetic", records=recs)
+    yoy = s.ttm_yoy(TrendMetric.NET_INCOME)
+    assert len(yoy) == 9
+    assert all(v is None for v in yoy[:4])
+    # TTM(7) = -50 vs TTM(3) = 400 -> <-100% but defined (profit-to-loss swing)
+    assert yoy[4] == pytest.approx((-50 / 400 - 1) * 100)
+    # TTM(11) = -300 vs TTM(7) = -50 -> non-positive base -> None
+    assert yoy[8] is None
+
+
+# --------------------------------------------------------------------------- #
+# Plotting (smoke -- requires matplotlib)
+# --------------------------------------------------------------------------- #
+def test_plot_trends_renders_growth_panel(tmp_path):
+    pytest.importorskip("matplotlib")
+    from valueinvest.trend.plotting import plot_trends
+
+    s = _series(ACCEL)
+    r = analyze_trend_signals(s)
+    out = str(tmp_path / "trend.png")
+    returned = plot_trends(s, r, out)
+    assert returned == out
+    assert (tmp_path / "trend.png").stat().st_size > 0

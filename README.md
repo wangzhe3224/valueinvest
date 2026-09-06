@@ -4,6 +4,8 @@ A modular Python library for comprehensive stock valuation using multiple method
 
 ## ✨ Recent Updates
 
+**v1.7.0** (2026-09-04): Expanded trend visualization — `plot_trends()` now renders Net Income and Operating Cash Flow TTM history panels plus a combined YoY-growth panel (revenue / net income / OCF, direct end-labels, ±200% display clip). New chart-only `TrendMetric.NET_INCOME` / `OPERATING_CASH_FLOW` (unscored) and `TrendSeries.ttm_yoy()`.
+
 **v1.6.1** (2026-08-20): Fixed PeerComparisonEngine crash — `_get_peer_values` referenced non-existent `Stock.effective_net_margin` when deriving peer net margin; now derives it via `_derive_net_margin()`.
 
 **v1.6.0** (2026-07-30): Added Trend & Growth-Signal Analysis — new `trend` module with multi-year quarterly series (revenue, gross/net margin, fcf yield, CCC) via stockanalysis/FMP/tushare fetchers (registry-pluggable), growth-signal scoring (CAGR, YoY acceleration, inflection, streak, stability) with CCC industry-applicability gating, and trend visualization (matplotlib `plot` extra); new `trend-analysis` skill.
@@ -42,7 +44,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 - Economic Moat scoring, ROIC vs WACC (economic profit), Capital Allocation quality
 - DuPont ROE decomposition (3-step & 5-step)
 - Peer Comparison, Implied Growth Rate (Reverse DCF/PEG/Gordon/Earnings Yield)
-- **Trend & Growth-Signal Analysis**: multi-year quarterly series (revenue, margins, fcf yield, CCC) via stockanalysis (US default) / FMP / tushare, with growth-signal scoring and visualization
+- **Trend & Growth-Signal Analysis**: multi-year quarterly series (revenue, net income, operating cash flow, margins, fcf yield, CCC) via stockanalysis (US default) / FMP / tushare, with growth-signal scoring and multi-panel visualization incl. a YoY-growth panel
 
 **Cash Flow & Shareholders**
 - Free Cash Flow analysis (quality, SBC impact, True FCF)

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2026-09-04
+
+### Added
+- **Trend chart expansion**: `plot_trends()` now also renders **Net Income (TTM)** and **Operating Cash Flow (TTM)** history panels (humanized B/M y-axis) plus a combined **YoY Growth panel** overlaying revenue / net income / operating-cash-flow TTM growth with direct end-of-line labels and a ±200% display clip (tiny-base outliers can no longer flatten the panel). New `include_growth` flag to toggle the growth panel.
+- **`TrendMetric.NET_INCOME` / `TrendMetric.OPERATING_CASH_FLOW`**: chart/extraction-only metrics (no signals, no score weight — composite ratings are unchanged); new `TrendSeries.ttm_yoy(metric)` returns TTM YoY % (`None` where the year-ago base is non-positive).
+
 ## [1.6.1] - 2026-08-20
 
 ### Fixed

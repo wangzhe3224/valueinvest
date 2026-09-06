@@ -34,13 +34,22 @@ from valueinvest.news.base import Market
 # Enums
 # --------------------------------------------------------------------------- #
 class TrendMetric(Enum):
-    """The five metrics tracked across the quarterly time-series."""
+    """Metrics tracked across the quarterly time-series.
+
+    Five scored metrics feed the signal engine (see METRIC_CATEGORY /
+    DEFAULT_METRIC_WEIGHTS). NET_INCOME and OPERATING_CASH_FLOW are
+    chart/extraction-only: they carry no signals and no score weight, so
+    adding them does not change the composite rating.
+    """
 
     REVENUE = "revenue"
     GROSS_MARGIN = "gross_margin"
     NET_MARGIN = "net_margin"
     FCF_YIELD = "fcf_yield"
     CCC = "ccc"
+    # chart/extraction-only (not scored)
+    NET_INCOME = "net_income"
+    OPERATING_CASH_FLOW = "operating_cash_flow"
 
 
 class TrendSignalCategory(Enum):
@@ -95,6 +104,10 @@ def metric_value(rec: "TrendRecord", metric: TrendMetric) -> float:
         return rec.fcf_yield
     if metric == TrendMetric.CCC:
         return rec.ccc
+    if metric == TrendMetric.NET_INCOME:
+        return rec.net_income
+    if metric == TrendMetric.OPERATING_CASH_FLOW:
+        return rec.operating_cash_flow
     return 0.0
 
 
@@ -252,6 +265,22 @@ class TrendSeries:
     def ttm_values(self, metric: TrendMetric) -> List[float]:
         """TTM values for a metric (one per quarter with >= 4 quarters history)."""
         return [metric_value(r, metric) for r in self.ttm_records()]
+
+    def ttm_yoy(self, metric: TrendMetric) -> List[Optional[float]]:
+        """Year-over-year growth (%) of the TTM series (vs 4 quarters earlier).
+
+        ``None`` where YoY is not meaningful: fewer than 4 prior TTM points, or
+        a non-positive base (negative/zero net income makes a % growth rate
+        undefined). Money metrics (revenue/net_income/ocf) are the intended
+        inputs; ratio metrics also work arithmetically.
+        """
+        vals = self.ttm_values(metric)
+        out: List[Optional[float]] = [None] * len(vals)
+        for i in range(4, len(vals)):
+            prev, cur = vals[i - 4], vals[i]
+            if prev > 0:
+                out[i] = (cur / prev - 1) * 100
+        return out
 
 
 @dataclass
