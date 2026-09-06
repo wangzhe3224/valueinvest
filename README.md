@@ -4,6 +4,8 @@ A modular Python library for comprehensive stock valuation using multiple method
 
 ## ✨ Recent Updates
 
+**v1.7.1** (2026-09-06): Fixed YFinanceInsiderFetcher silent failure (0 trades) — now uses `Ticker.insider_transactions` per-trade Form 4 records (~2y history); trade type parsed from the `Text` field (grants no longer miscounted as buys), price back-out from `Value/Shares` when missing.
+
 **v1.7.0** (2026-09-04): Expanded trend visualization — `plot_trends()` now renders Net Income and Operating Cash Flow TTM history panels plus a combined YoY-growth panel (revenue / net income / OCF, direct end-labels, ±200% display clip). New chart-only `TrendMetric.NET_INCOME` / `OPERATING_CASH_FLOW` (unscored) and `TrendSeries.ttm_yoy()`.
 
 **v1.6.1** (2026-08-20): Fixed PeerComparisonEngine crash — `_get_peer_values` referenced non-existent `Stock.effective_net_margin` when deriving peer net margin; now derives it via `_derive_net_margin()`.

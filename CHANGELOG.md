@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.1] - 2026-09-06
+
+### Fixed
+- **YFinanceInsiderFetcher returned 0 trades (silent failure)**: rewrote to use `Ticker.insider_transactions` (per-trade Form 4 records, ~2y history). The old code iterated `insider_purchases` — a 6-month aggregate table with no `Start Date` column, so every row was skipped — and read a non-existent `Shares` column from `insider_roster_holders`. Trade type is now parsed from the `Text` field (Sale/Buy/Gift/Exercise; empty text = grant → `OTHER`, no longer miscounted as buys), price falls back to `Value / Shares` when the text lacks one, and `Value` NaN is handled.
+
 ## [1.7.0] - 2026-09-04
 
 ### Added
