@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.2] - 2026-09-11
+
+### Fixed
+- **stock_snapshot ROE/ROIC sourced from the wrong stockanalysis page**: the quarterly ratios page's `roe`/`roic` fields are single-quarter (ROIC) / YTD-basis (ROE) numbers, not TTM — IBM displayed ROE 14.8% / ROIC 2.2% instead of the true ~34.5% / ~14.0% (fiscal-year anchors and the latest-TTM column were both affected, which also skewed the four-quadrant ROIC delta). The script now also fetches the annual ratios page (whose newest column is TTM) and uses it for ROE/ROIC levels and deltas, with fallback to the old source if the annual page is unavailable.
+
 ## [1.7.1] - 2026-09-06
 
 ### Fixed

@@ -170,13 +170,17 @@ def fetch_snapshot(ticker: str) -> Dict[str, Any]:
 
     # -- embedded blobs ---------------------------------------------------
     blobs: Dict[str, Dict[str, List[Any]]] = {}
-    for section, tag in [
-        ("", "income"),
-        ("/cash-flow-statement", "cf"),
-        ("/balance-sheet", "bs"),
-        ("/ratios", "ratios"),
+    for section, tag, quarterly in [
+        ("", "income", True),
+        ("/cash-flow-statement", "cf", True),
+        ("/balance-sheet", "bs", True),
+        ("/ratios", "ratios", True),
+        # annual ratios page: its newest column is TTM. The quarterly ratios
+        # page's roe/roic rows are single-quarter (ROIC) / YTD-basis (ROE)
+        # numbers, NOT TTM -- never use them for levels or deltas.
+        ("/ratios", "ratios_annual", False),
     ]:
-        suffix = "/?p=quarterly" if section else "/?p=quarterly"
+        suffix = "/?p=quarterly" if quarterly else ""
         try:
             blobs[tag] = extract_financial_data(fetch_page(f"{base}{section}{suffix}"))
         except Exception as e:  # noqa: BLE001
@@ -331,8 +335,45 @@ def fetch_snapshot(ticker: str) -> Dict[str, Any]:
     gm_a = [next((r["value"] for r in gm_series if r["date"] == a["date"]), None) for a in anchor_list]
     nm_a = [next((r["value"] for r in nm_series if r["date"] == a["date"]), None) for a in anchor_list]
     dr_a = at_anchor({d: (m_liab.get(d) / m_assets.get(d) * 100) if m_assets.get(d) else None for d in dates})
-    roe_a = at_anchor(r_roe)
-    roic_a = at_anchor(r_roic)
+
+    # ROE/ROIC from the annual ratios page: fiscalYear-keyed, newest column = TTM.
+    def annual_ratio(field: str) -> Dict[int, float]:
+        data = blobs.get("ratios_annual", {})
+        out_map: Dict[int, float] = {}
+        for i, fyv in enumerate(data.get("fiscalYear", [])):
+            vals = data.get(field, [])
+            v = vals[i] if i < len(vals) else None
+            if v is None:
+                continue
+            v = v * 100 if abs(v) < 3 else v
+            try:
+                out_map[int(fyv)] = v
+            except (TypeError, ValueError):
+                continue
+        return out_map
+
+    ann_roe = annual_ratio("roe")
+    ann_roic = annual_ratio("roic")
+
+    def ann_anchor_series(ann: Dict[int, float]) -> List[Optional[float]]:
+        return [ann.get(int(a["fy"])) for a in anchor_list]
+
+    def ann_newest(ann: Dict[int, float]) -> Optional[float]:
+        return ann[max(ann)] if ann else None
+
+    def ann_delta(ann: Dict[int, float]) -> Dict[str, Optional[float]]:
+        """TTM vs prior full FY (yoy) and vs 3 fiscal years back (delta3), in pp."""
+        if not ann:
+            return {"yoy": None, "delta3": None}
+        ys = sorted(ann)
+        cur = ann[ys[-1]]
+        prev = ann.get(ys[-2]) if len(ys) >= 2 else None
+        base3 = ann.get(ys[-1] - 3)
+        return {"yoy": cur - prev if prev is not None else None,
+                "delta3": cur - base3 if base3 is not None else None}
+
+    roe_a = ann_anchor_series(ann_roe) if ann_roe else at_anchor(r_roe)
+    roic_a = ann_anchor_series(ann_roic) if ann_roic else at_anchor(r_roic)
     sh_a = at_anchor(m_shares)
 
     def metric_block(name: str, annual: List[Optional[float]], kind: str) -> Dict[str, Any]:
@@ -361,8 +402,8 @@ def fetch_snapshot(ticker: str) -> Dict[str, Any]:
     ttm_now = {
         "revenue": latest(rev_ttm), "gross_margin": latest(gm_series),
         "net_margin": latest(nm_series), "ocf": latest(ocf_ttm),
-        "roe": last_valid(r_roe),
-        "roic": last_valid(r_roic),
+        "roe": ann_newest(ann_roe) if ann_roe else last_valid(r_roe),
+        "roic": ann_newest(ann_roic) if ann_roic else last_valid(r_roic),
         "debt_ratio": next(
             (m_liab.get(d) / m_assets.get(d) * 100 for d in reversed(dates) if m_assets.get(d)),
             None),
@@ -390,8 +431,8 @@ def fetch_snapshot(ticker: str) -> Dict[str, Any]:
     ttm_now["ocf_growth"] = ttm_growth(ocf_ttm)
     ttm_now["fcf_growth"] = ttm_growth(fcf_ttm)
     ttm_now["shares_growth"] = ttm_growth([{"date": d, "value": m_shares.get(d)} for d in dates])
-    ttm_now["roe_delta"] = pp_delta(ordered(r_roe))
-    ttm_now["roic_delta"] = pp_delta(ordered(r_roic))
+    ttm_now["roe_delta"] = ann_delta(ann_roe) if ann_roe else pp_delta(ordered(r_roe))
+    ttm_now["roic_delta"] = ann_delta(ann_roic) if ann_roic else pp_delta(ordered(r_roic))
     ttm_now["gross_margin_delta"] = pp_delta([r["value"] for r in gm_series])
     ttm_now["net_margin_delta"] = pp_delta([r["value"] for r in nm_series])
     ttm_now["debt_ratio_delta"] = pp_delta(
