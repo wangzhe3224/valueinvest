@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.3] - 2026-09-11
+
+### Added
+- **stock_snapshot quick note for no-COGS vendors**: when reported gross margin is ≥ 99.5% (vendor P&L has no COGS row — e.g. Mastercard, ICE — so gross profit is imputed = revenue), the snapshot now emits an `[i]` note telling the analyst to use operating/net margin instead. Caught during the MA 2026-09-11 snapshot where the table showed a bogus 100% gross margin.
+
 ## [1.7.2] - 2026-09-11
 
 ### Fixed

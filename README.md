@@ -4,6 +4,8 @@ A modular Python library for comprehensive stock valuation using multiple method
 
 ## ✨ Recent Updates
 
+**v1.7.3** (2026-09-11): stock_snapshot now flags vendors with no COGS row (gross margin imputed ≈100%, e.g. Mastercard/ICE) — directs the analyst to operating/net margin instead.
+
 **v1.7.2** (2026-09-11): Fixed stock_snapshot ROE/ROIC data source — stockanalysis's quarterly ratios page reports single-quarter/YTD-basis `roe`/`roic` (not TTM); the snapshot now reads levels and deltas from the annual ratios page (newest column = TTM).
 
 **v1.7.1** (2026-09-06): Fixed YFinanceInsiderFetcher silent failure (0 trades) — now uses `Ticker.insider_transactions` per-trade Form 4 records (~2y history); trade type parsed from the `Text` field (grants no longer miscounted as buys), price back-out from `Value/Shares` when missing.

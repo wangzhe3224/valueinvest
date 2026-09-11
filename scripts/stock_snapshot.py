@@ -651,6 +651,14 @@ def collect_quick_notes(s: Dict[str, Any]) -> List[str]:
         out.append(f"[!] debt ratio {dr:.0f}% > 70% - high leverage (financials: this metric is structural, ignore)")
     if comp.get("sector") and "Financial" in str(comp["sector"]):
         out.append("[i] Financial sector: debt ratio / ROE / DuPont are structural, use PE/PB")
+    gm = ttm.get("gross_margin")
+    if gm is not None:
+        gmv = gm * 100 if abs(gm) < 3 else gm
+        if gmv >= 99.5:
+            out.append(
+                f"[i] gross margin {gmv:.0f}% - vendor P&L has no COGS row (all costs booked"
+                f" as opex), GP imputed = revenue (e.g. MA/ICE); use operating/net margin instead"
+            )
     sbc = ttm.get("sbc")
     rev = ttm.get("revenue")
     if sbc and rev:
