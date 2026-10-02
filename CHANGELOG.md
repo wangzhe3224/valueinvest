@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-10-02
+
+### Added
+- **Standalone Macrotrends fundamentals fetcher** (`data/fetcher/macrotrends.py`, extra `valueinvest[macrotrends]`): income / balance-sheet / cash-flow statements, annual (~15y) + quarterly (~59 periods, ~3x stockanalysis history), returned as period-indexed DataFrames in absolute USD. macrotrends.net sits behind a Cloudflare managed challenge, so it drives a local headed Chrome via a new reusable CDP transport (`data/fetcher/cdp_chrome.py`, websocket-client; auto-launch or manual `--remote-debugging-port=9222`). Parsed-row disk cache (12h TTL, /tmp), label+slug dual alias matching, EPS rows unscaled, `""`→NaN (never 0), capex normalized negative, FCF computed. Not wired into `get_fetcher()`/registries — call `MacrotrendsFetcher` directly.
+
 ## [1.7.3] - 2026-09-11
 
 ### Added

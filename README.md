@@ -4,6 +4,8 @@ A modular Python library for comprehensive stock valuation using multiple method
 
 ## ✨ Recent Updates
 
+**v1.8.0** (2026-10-02): New standalone Macrotrends fetcher — income / balance-sheet / cash-flow from macrotrends.net with ~15y annual + ~59 quarterly periods (~3x stockanalysis history), via local Chrome CDP (Cloudflare-protected site); `valueinvest[macrotrends]` extra, 12h disk cache.
+
 **v1.7.3** (2026-09-11): stock_snapshot now flags vendors with no COGS row (gross margin imputed ≈100%, e.g. Mastercard/ICE) — directs the analyst to operating/net margin instead.
 
 **v1.7.2** (2026-09-11): Fixed stock_snapshot ROE/ROIC data source — stockanalysis's quarterly ratios page reports single-quarter/YTD-basis `roe`/`roic` (not TTM); the snapshot now reads levels and deltas from the annual ratios page (newest column = TTM).
@@ -201,8 +203,11 @@ result = CyclicalAnalysisEngine().analyze(stock)   # cycle phase, rating, strate
 | Tushare | A-shares | Token | `pip install valueinvest[tushare]` |
 | stockanalysis.com | US (trend) | Free (scrape) | bundled |
 | FMP | US (trend) | API key | optional |
+| macrotrends.net | US (statements, ~15y annual / ~59 quarters) | Free (scrape, needs local Chrome) | `pip install valueinvest[macrotrends]` |
 
 Auto-detection by ticker: 6 digits (600887) → A-share, letters (AAPL) → US.
+
+**Macrotrends**: standalone fetcher (not part of auto-detection) — `MacrotrendsFetcher().fetch_statement("NKE", "cash_flow", freq="quarterly")`. The site is Cloudflare-protected: it drives a local **headed** Chrome over CDP (port 9222, auto-launched if absent; complete the verification check in the window on first use).
 
 **Trend data**: US default is stockanalysis.com (free, ~5y quarterly); FMP free is capped at ~5 quarters (paid for full history); A-shares use Tushare. Switch via `TrendRegistry.register_fetcher(...)`.
 
@@ -252,7 +257,7 @@ valueinvest/
 ├── news/                    # News, sentiment, guidance
 │   ├── fetcher/  analyzer/  (keyword / llm / agent)
 ├── data/
-│   ├── fetcher/             # akshare, yfinance, tushare, peers
+│   ├── fetcher/             # akshare, yfinance, tushare, peers, macrotrends (CDP) + cdp_chrome
 │   ├── patch.py             # Earnings patch
 │   ├── freshness.py  presets.py
 └── reports/                 # Report formatting & export
