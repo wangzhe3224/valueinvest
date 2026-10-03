@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2026-10-02
+
+### Added
+- **stock_snapshot dual data source** (`scripts/stock_snapshot.py`): stockanalysis.com stays PRIMARY (freshest — updates within hours of earnings); macrotrends.net (v1.8.0 fetcher, ~59 quarters + 10-FY table) kicks in ONLY when the stockanalysis history is thin (<20 quarters, e.g. young companies, partial data, site glitches) or its fetch fails — on that path ROE/ROIC/multiples are computed from statements + yfinance closes (self-calculated basis, auto-noted in the report; Forward PE left for web verification). `--source {auto,macrotrends,stockanalysis}` flag; output records `source`/`source_notes`. Refactor: both sources now build a common data spine consumed by shared downstream math (TTM/anchors/percentiles/quadrant). `cdp_chrome.launch_debugger_chrome` now wraps launch failures in `ChromeDebuggerError`.
+
 ## [1.8.0] - 2026-10-02
 
 ### Added

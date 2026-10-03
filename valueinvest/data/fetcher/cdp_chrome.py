@@ -89,19 +89,26 @@ def launch_debugger_chrome(port: int = DEFAULT_CDP_PORT, timeout: float = 30.0) 
             f"  {_LAUNCH_HINT_EN.format(port=port)}\n"
             f"  未找到 Chrome，请设置 VALUEINVEST_CHROME_PATH 或手动启动"
         )
-    subprocess.Popen(  # noqa: S603 -- fixed binary path / args
-        [
-            binary,
-            f"--remote-debugging-port={port}",
+    try:
+        subprocess.Popen(  # noqa: S603 -- fixed binary path / args
+            [
+                binary,
+                f"--remote-debugging-port={port}",
             f"--user-data-dir=/tmp/valueinvest-chrome-cdp-{port}",
             "--no-first-run",
             "--no-default-browser-check",
             "about:blank",
         ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError as e:
+        raise ChromeDebuggerError(
+            f"Cannot launch Chrome ({binary!r}): {e}. "
+            f"Launch manually:\n  {_LAUNCH_HINT_EN.format(port=port)}\n"
+            f"  无法启动 Chrome，请手动启动（{_LAUNCH_HINT_ZH}）"
+        ) from e
     deadline = time.time() + timeout
     while time.time() < deadline:
         if is_debugger_alive(port):

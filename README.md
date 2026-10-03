@@ -4,6 +4,8 @@ A modular Python library for comprehensive stock valuation using multiple method
 
 ## ✨ Recent Updates
 
+**v1.9.0** (2026-10-02): stock_snapshot gains a macrotrends.net supplement — used only when stockanalysis history is thin (<20 quarters) or fails (~59 quarters + 10-FY table, self-calculated ROE/ROIC/multiples); `--source` flag to force either.
+
 **v1.8.0** (2026-10-02): New standalone Macrotrends fetcher — income / balance-sheet / cash-flow from macrotrends.net with ~15y annual + ~59 quarterly periods (~3x stockanalysis history), via local Chrome CDP (Cloudflare-protected site); `valueinvest[macrotrends]` extra, 12h disk cache.
 
 **v1.7.3** (2026-09-11): stock_snapshot now flags vendors with no COGS row (gross margin imputed ≈100%, e.g. Mastercard/ICE) — directs the analyst to operating/net margin instead.

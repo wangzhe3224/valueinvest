@@ -81,7 +81,7 @@ from .trend import (
     analyze_trend_signals,
 )
 
-__version__ = "1.8.0"
+__version__ = "1.9.0"
 
 __all__ = [
     # Core
